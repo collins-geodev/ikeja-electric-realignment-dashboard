@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>IKEDC 2026 Realignment Command Dashboard</title>
   <meta name="description" content="Ikeja Electric 2026 network realignment — Business Units, Undertakings, DTs and feeders." />
+  <link rel="icon" type="image/png" href="assets/ikeja-electric-logo.png" />
+  <link rel="apple-touch-icon" href="assets/ikeja-electric-logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -15,7 +17,7 @@
   <div class="app">
     <header class="topbar">
       <div class="brand">
-        <img class="brand-logo" src="assets/ie-logo.svg" alt="Ikeja Electric" width="48" height="48" />
+        <img class="brand-logo" src="assets/ikeja-electric-logo.png" alt="Ikeja Electric" width="140" height="48" />
         <div>
           <p class="eyebrow">Ikeja Electric · GIS</p>
           <h1>2026 Realignment Command</h1>
@@ -26,43 +28,91 @@
         <button class="tab" data-tab="assets" role="tab" aria-selected="false">DT register</button>
         <button class="tab" data-tab="feeders" role="tab" aria-selected="false">Feeders</button>
       </nav>
-      <div class="filters" id="filter-bar">
-        <div class="combo" data-combo="bu">
-          <span class="combo-label">Business Unit</span>
-          <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
-            <span class="combo-value">All BUs</span>
-            <span class="combo-chevron" aria-hidden="true">▾</span>
-          </button>
-          <div class="combo-panel" hidden>
-            <input type="search" class="combo-search" placeholder="Search business units…" autocomplete="off" />
-            <ul class="combo-list" role="listbox"></ul>
+      <div class="toolbar">
+        <div class="filters" id="filter-bar">
+          <div class="combo" data-combo="bu">
+            <span class="combo-label">Business Unit</span>
+            <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="combo-value">All BUs</span>
+              <span class="combo-chevron" aria-hidden="true">▾</span>
+            </button>
+            <div class="combo-panel" hidden>
+              <input type="search" class="combo-search" placeholder="Search business units…" autocomplete="off" />
+              <div class="combo-actions">
+                <button type="button" class="linkish" data-action="select-all">Select all</button>
+                <button type="button" class="linkish" data-action="clear">Clear</button>
+              </div>
+              <ul class="combo-list" role="listbox" aria-multiselectable="true"></ul>
+            </div>
+          </div>
+          <div class="combo" data-combo="ut">
+            <span class="combo-label">Undertaking</span>
+            <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="combo-value">All UTs</span>
+              <span class="combo-chevron" aria-hidden="true">▾</span>
+            </button>
+            <div class="combo-panel" hidden>
+              <input type="search" class="combo-search" placeholder="Search undertakings…" autocomplete="off" />
+              <div class="combo-actions">
+                <button type="button" class="linkish" data-action="select-all">Select all</button>
+                <button type="button" class="linkish" data-action="clear">Clear</button>
+              </div>
+              <ul class="combo-list" role="listbox" aria-multiselectable="true"></ul>
+            </div>
+          </div>
+          <div class="combo" data-combo="feeder">
+            <span class="combo-label">Feeder</span>
+            <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="combo-value">All feeders</span>
+              <span class="combo-chevron" aria-hidden="true">▾</span>
+            </button>
+            <div class="combo-panel" hidden>
+              <input type="search" class="combo-search" placeholder="Search feeders…" autocomplete="off" />
+              <div class="combo-actions">
+                <button type="button" class="linkish" data-action="select-all">Select all</button>
+                <button type="button" class="linkish" data-action="clear">Clear</button>
+              </div>
+              <ul class="combo-list" role="listbox" aria-multiselectable="true"></ul>
+            </div>
+          </div>
+          <div class="combo" data-combo="dt">
+            <span class="combo-label">Distribution transformer</span>
+            <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="combo-value">All DTs</span>
+              <span class="combo-chevron" aria-hidden="true">▾</span>
+            </button>
+            <div class="combo-panel" hidden>
+              <input type="search" class="combo-search" placeholder="Search DT nomenclature…" autocomplete="off" />
+              <div class="combo-actions">
+                <button type="button" class="linkish" data-action="select-all">Select all</button>
+                <button type="button" class="linkish" data-action="clear">Clear</button>
+              </div>
+              <ul class="combo-list" role="listbox" aria-multiselectable="true"></ul>
+            </div>
           </div>
         </div>
-        <div class="combo" data-combo="ut">
-          <span class="combo-label">Undertaking</span>
-          <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
-            <span class="combo-value">All UTs</span>
-            <span class="combo-chevron" aria-hidden="true">▾</span>
-          </button>
-          <div class="combo-panel" hidden>
-            <input type="search" class="combo-search" placeholder="Search undertakings…" autocomplete="off" />
-            <ul class="combo-list" role="listbox"></ul>
-          </div>
-        </div>
-        <div class="combo" data-combo="feeder">
-          <span class="combo-label">Feeder</span>
-          <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
-            <span class="combo-value">All feeders</span>
-            <span class="combo-chevron" aria-hidden="true">▾</span>
-          </button>
-          <div class="combo-panel" hidden>
-            <input type="search" class="combo-search" placeholder="Search feeders…" autocomplete="off" />
-            <ul class="combo-list" role="listbox"></ul>
+        <div class="io-actions">
+          <label class="btn btn-secondary">
+            Upload layers
+            <input id="upload-input" type="file" multiple accept=".geojson,.json,.kml,.kmz,.zip,.shp,.dbf,.prj,.cpg,.gpkg,.gdb,.csv,application/zip" hidden />
+          </label>
+          <div class="export-wrap">
+            <button type="button" class="btn btn-primary" id="export-btn">Export ▾</button>
+            <div class="export-menu" id="export-menu" hidden>
+              <button type="button" data-export="csv-uts">Undertakings CSV</button>
+              <button type="button" data-export="csv-bus">Business Units CSV</button>
+              <button type="button" data-export="csv-feeders">Feeders CSV</button>
+              <button type="button" data-export="csv-dts">DTs CSV</button>
+              <button type="button" data-export="xlsx">Excel workbook</button>
+              <button type="button" data-export="kml">Filtered map KML</button>
+              <button type="button" data-export="geojson">Filtered GeoJSON</button>
+            </div>
           </div>
         </div>
       </div>
     </header>
 
+    <p class="io-status" id="io-status" hidden></p>
     <section class="kpi-strip" id="kpi-strip" aria-label="Key performance indicators"></section>
 
     <main>
@@ -71,7 +121,7 @@
           <div class="card map-card">
             <div class="card-head">
               <h2>Network geography</h2>
-              <p>2026 BU boundaries · UT outlines · sampled DTs · ISS / TCN</p>
+              <p>2026 BU boundaries · UT outlines · feeders · DTs · ISS / TCN</p>
             </div>
             <div id="map" class="map"></div>
             <div class="map-legend" id="map-legend"></div>
@@ -102,7 +152,7 @@
           <div class="card">
             <div class="card-head">
               <h2>Undertaking table</h2>
-              <p>Click a row to focus the map</p>
+              <p>Click a row to select that UT and zoom</p>
             </div>
             <div class="table-wrap">
               <table id="ut-table">
@@ -127,33 +177,33 @@
         <div class="grid assets-grid">
           <div class="card">
             <div class="card-head">
-              <h2>Metering status</h2>
-              <p>Public + private DT register</p>
+              <h2>Business Unit area (km²)</h2>
+              <p>Land area of each 2026 Business Unit</p>
             </div>
-            <div class="chart-box h-260"><canvas id="chart-metering"></canvas></div>
+            <div class="chart-box h-260"><canvas id="chart-bu-area"></canvas></div>
           </div>
           <div class="card">
             <div class="card-head">
-              <h2>Connection status</h2>
-              <p>Operational state of DTs</p>
+              <h2>Undertaking area (km²)</h2>
+              <p>Largest UTs by polygon area in the current filter</p>
             </div>
-            <div class="chart-box h-260"><canvas id="chart-connection"></canvas></div>
+            <div class="chart-box h-260"><canvas id="chart-ut-area"></canvas></div>
           </div>
           <div class="card">
             <div class="card-head">
-              <h2>Capacity classes (kVA)</h2>
-              <p>Installed transformer capacity distribution</p>
+              <h2>DT density (per km²)</h2>
+              <p>Workload intensity by Business Unit</p>
             </div>
-            <div class="chart-box h-260"><canvas id="chart-capacity"></canvas></div>
+            <div class="chart-box h-260"><canvas id="chart-density"></canvas></div>
           </div>
           <div class="card">
             <div class="card-head">
-              <h2>Ownership &amp; account mix</h2>
-              <p>Public / private and prepaid / postpaid</p>
+              <h2>Ownership &amp; install position</h2>
+              <p>Public / private mix and ground vs other mounting</p>
             </div>
             <div class="split-charts">
               <div class="chart-box h-220"><canvas id="chart-ownership"></canvas></div>
-              <div class="chart-box h-220"><canvas id="chart-acc"></canvas></div>
+              <div class="chart-box h-220"><canvas id="chart-install"></canvas></div>
             </div>
           </div>
           <div class="card wide">
@@ -165,13 +215,10 @@
           </div>
           <div class="card wide">
             <div class="card-head">
-              <h2>Maintenance &amp; disconnection</h2>
-              <p>Health signals across the sampled register fields</p>
+              <h2>Capacity classes (kVA)</h2>
+              <p>Installed transformer capacity distribution</p>
             </div>
-            <div class="split-charts">
-              <div class="chart-box h-240"><canvas id="chart-maint"></canvas></div>
-              <div class="chart-box h-240"><canvas id="chart-disc"></canvas></div>
-            </div>
+            <div class="chart-box h-260"><canvas id="chart-capacity"></canvas></div>
           </div>
         </div>
       </section>
@@ -202,7 +249,7 @@
           <div class="card wide">
             <div class="card-head">
               <h2>Top feeders by DT count</h2>
-              <p>Filtered by selected Business Unit, UT, and feeder</p>
+              <p>Names follow DT register Feeder Name nomenclature</p>
             </div>
             <div class="table-wrap">
               <table id="feeder-table">
@@ -234,6 +281,10 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/shpjs@4.0.4/dist/shp.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

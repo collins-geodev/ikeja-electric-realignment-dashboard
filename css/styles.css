@@ -33,21 +33,93 @@ body {
 
 .topbar {
   display: grid;
-  grid-template-columns: minmax(220px, 1.1fr) auto minmax(280px, 1.4fr);
+  grid-template-columns: minmax(240px, 1fr) auto minmax(320px, 1.6fr);
   gap: 1rem;
-  align-items: center;
+  align-items: start;
   margin-bottom: 1rem;
 }
 
 .brand { display: flex; gap: 0.85rem; align-items: center; min-width: 0; }
 .brand-logo {
-  width: 48px;
+  width: auto;
+  max-width: 150px;
   height: 48px;
   object-fit: contain;
-  border-radius: 12px;
-  background: #0b0b0f;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 4px 8px;
   box-shadow: 0 0 0 1px rgba(255,255,255,0.12), var(--shadow);
   flex-shrink: 0;
+}
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-items: stretch;
+}
+.io-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.5rem 0.85rem;
+  font: 500 0.86rem var(--font-body);
+  cursor: pointer;
+  color: var(--text);
+  background: var(--bg-card);
+}
+.btn-primary {
+  background: linear-gradient(135deg, #c8452c, #d99a1e);
+  border-color: transparent;
+  color: #fff;
+}
+.btn-secondary:hover { border-color: rgba(232, 163, 23, 0.45); }
+.export-wrap { position: relative; }
+.export-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 50;
+  min-width: 200px;
+  background: #1a2433;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 0.35rem;
+}
+.export-menu[hidden] { display: none !important; }
+.export-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  font: 400 0.86rem var(--font-body);
+  cursor: pointer;
+}
+.export-menu button:hover { background: rgba(232, 163, 23, 0.14); }
+.io-status {
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 10px;
+  background: rgba(46, 139, 87, 0.15);
+  border: 1px solid rgba(46, 139, 87, 0.35);
+  color: #b7e0c5;
+  font-size: 0.85rem;
+}
+.io-status.error {
+  background: rgba(200, 69, 44, 0.15);
+  border-color: rgba(200, 69, 44, 0.4);
+  color: #f0b4a8;
 }
 .eyebrow {
   margin: 0;
@@ -142,6 +214,7 @@ body {
   left: 0;
   right: 0;
   z-index: 40;
+  min-width: 240px;
   background: #1a2433;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -163,6 +236,21 @@ body {
   outline: none;
   border-color: rgba(232, 163, 23, 0.55);
 }
+.combo-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+.linkish {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: 500 0.78rem var(--font-body);
+  cursor: pointer;
+  padding: 0.15rem 0;
+}
 .combo-list {
   list-style: none;
   margin: 0;
@@ -170,26 +258,49 @@ body {
   max-height: 220px;
   overflow: auto;
 }
-.combo-list li button {
+.combo-list li label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
   width: 100%;
-  appearance: none;
-  border: 0;
-  background: transparent;
   color: var(--text);
   text-align: left;
-  padding: 0.45rem 0.55rem;
+  padding: 0.4rem 0.5rem;
   border-radius: 8px;
-  font: 400 0.86rem var(--font-body);
+  font: 400 0.84rem var(--font-body);
   cursor: pointer;
 }
-.combo-list li button:hover,
-.combo-list li button[aria-selected="true"] {
+.combo-list li label:hover {
   background: rgba(232, 163, 23, 0.14);
+}
+.combo-list li input {
+  margin-top: 0.15rem;
+  accent-color: #d99a1e;
+  flex-shrink: 0;
 }
 .combo-list .empty {
   padding: 0.6rem 0.55rem;
   color: var(--muted);
   font-size: 0.84rem;
+}
+.combo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  max-width: 100%;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(232, 163, 23, 0.16);
+  color: #f0d9a0;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .kpi-strip {
@@ -209,6 +320,9 @@ body {
 .kpi.interactive {
   cursor: pointer;
   transition: border-color 0.15s ease, transform 0.15s ease;
+  color: var(--text);
+  font: inherit;
+  width: 100%;
 }
 .kpi.interactive:hover {
   border-color: rgba(232, 163, 23, 0.4);
@@ -226,6 +340,11 @@ body {
   font-size: 1.55rem;
   font-weight: 650;
   letter-spacing: -0.03em;
+  color: #ffffff;
+}
+button.kpi .value,
+.kpi.interactive .value {
+  color: #ffffff;
 }
 .kpi .hint {
   margin-top: 0.2rem;
@@ -418,6 +537,7 @@ tbody tr.active { background: rgba(232, 163, 23, 0.12); }
 @media (max-width: 1200px) {
   .topbar { grid-template-columns: 1fr; }
   .filters { justify-content: flex-start; }
+  .io-actions { justify-content: flex-start; }
   .kpi-strip { grid-template-columns: repeat(3, 1fr); }
   .overview-grid,
   .assets-grid,
