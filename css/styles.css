@@ -722,6 +722,30 @@ button.kpi .value,
     0 0 0 1px rgba(255, 255, 255, 0.06) inset;
 }
 .map-layer-filter-panel[hidden] { display: none !important; }
+.map-layer-filter-actions {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.45rem 0.5rem 0.35rem;
+  border-bottom: 1px solid rgba(232, 163, 23, 0.28);
+}
+.map-layer-filter-action {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(232, 163, 23, 0.4);
+  background: rgba(232, 163, 23, 0.12);
+  color: #ffe8a8;
+  font: 600 0.72rem var(--font-body);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.map-layer-filter-action:hover {
+  background: rgba(232, 163, 23, 0.28);
+  border-color: rgba(240, 180, 41, 0.75);
+  color: #fff4cc;
+}
 .map-layer-filter-leaflet.leaflet-control-layers {
   float: none !important;
   margin: 0 !important;

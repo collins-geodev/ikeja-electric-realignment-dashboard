@@ -1212,6 +1212,33 @@
     };
     document.addEventListener("click", onDocClick);
 
+    const overlayLayers = Object.values(overlays || {}).filter(Boolean);
+    const actions = document.createElement("div");
+    actions.className = "map-layer-filter-actions";
+    actions.innerHTML = `
+      <button type="button" class="map-layer-filter-action" data-layers-all>Select all</button>
+      <button type="button" class="map-layer-filter-action" data-layers-none>Clear all</button>`;
+    panel.appendChild(actions);
+
+    const setAllOverlays = (on) => {
+      overlayLayers.forEach((layer) => {
+        if (!layer || typeof map.hasLayer !== "function") return;
+        if (on) {
+          if (!map.hasLayer(layer)) map.addLayer(layer);
+        } else if (map.hasLayer(layer)) {
+          map.removeLayer(layer);
+        }
+      });
+    };
+    actions.querySelector("[data-layers-all]")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setAllOverlays(true);
+    });
+    actions.querySelector("[data-layers-none]")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setAllOverlays(false);
+    });
+
     const ctrl = L.control.layers(bases, overlays, {
       position: "topright",
       collapsed: false,
