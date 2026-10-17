@@ -25,7 +25,7 @@
     <div class="chrome-right">
       <button type="button" class="btn btn-ghost" id="btn-reset">Reset</button>
       <button type="button" class="btn btn-ghost" id="btn-theme">Light mode</button>
-      <button type="button" class="btn btn-ghost" id="btn-audio" title="Soft royalty-free instrumental pad">Play ambient instrumental</button>
+      <button type="button" class="btn btn-ghost" id="btn-audio" title="Quiet looping instrumental from 3:20">Play instrumental</button>
       <button type="button" class="btn btn-secondary" id="btn-export-pdf">Export PDF</button>
       <button type="button" class="btn btn-primary" id="btn-export-dual-xlsx">Excel (both)</button>
     </div>
@@ -140,6 +140,16 @@
 
     <p class="io-status" id="io-status" hidden></p>
     <section class="kpi-strip" id="kpi-strip" aria-label="Key performance indicators"></section>
+
+    <section class="card intel-feed-card" aria-label="Live industry feeds">
+      <div class="card-head">
+        <div>
+          <h2>Live feeds</h2>
+          <p>Ikeja Electric · NERC · LASERC · power &amp; geospatial news · Nairametrics</p>
+        </div>
+      </div>
+      <div id="intel-feed" class="live-feed-host live-feed-host--compact"></div>
+    </section>
 
     <main>
       <section class="panel tab-panel active" id="panel-overview" role="tabpanel">
@@ -427,6 +437,7 @@
       <a href="#story-workload">Workload</a>
       <a href="#story-quality">Quality</a>
       <a href="#story-method">Method</a>
+      <a href="#story-feeds">Live feeds</a>
       <a href="#story-explore">Explore</a>
     </nav>
 
@@ -503,9 +514,15 @@
       </p>
     </section>
 
+    <section class="story-section reveal" id="story-feeds">
+      <h2>Live industry pulse</h2>
+      <p>Same live feed pipeline as Coverage and Intelligence — Ikeja Electric, NERC, LASERC, and sector news.</p>
+      <div id="story-feed" class="live-feed-host"></div>
+    </section>
+
     <section class="story-section story-cta reveal" id="story-explore">
       <h2>Explore the data</h2>
-      <p>Filter by Business Unit or Undertaking on the intelligence dashboard, or watch live industry feeds on Coverage.</p>
+      <p>Filter by Business Unit or Undertaking on the intelligence dashboard, or open the coverage map with live feeds.</p>
       <div class="story-cta-row">
         <button type="button" class="btn btn-accent" data-goto="coverage">Coverage dashboard</button>
         <button type="button" class="btn btn-primary" data-goto="intelligence">Intelligence dashboard</button>

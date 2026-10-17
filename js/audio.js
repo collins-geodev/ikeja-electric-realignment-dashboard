@@ -55,6 +55,7 @@
     const btn = document.getElementById("btn-audio");
     if (!btn) return;
     btn.textContent = playing ? "Mute instrumental" : "Play instrumental";
+    btn.title = "Quiet instrumental loop (from 3:20 of source)";
     btn.setAttribute("aria-pressed", playing ? "true" : "false");
   }
 

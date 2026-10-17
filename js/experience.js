@@ -142,14 +142,20 @@
     if (view === "coverage") {
       requestAnimationFrame(() => {
         initCoverage();
-        window.IKEDCFeeds?.mount?.("cov-feed", { limit: 18 });
+        window.IKEDCFeeds?.mount?.("cov-feed", { limit: 16 });
       });
     }
     if (view === "story") {
-      requestAnimationFrame(() => initStory());
+      requestAnimationFrame(() => {
+        initStory();
+        window.IKEDCFeeds?.mount?.("story-feed", { limit: 12 });
+      });
     }
     if (view === "intelligence") {
       window.IKEDC?.resize?.();
+      requestAnimationFrame(() => {
+        window.IKEDCFeeds?.mount?.("intel-feed", { limit: 8 });
+      });
     }
     history.replaceState(null, "", `#${view}`);
   }
@@ -898,6 +904,13 @@
 
     $("#btn-export-pdf")?.addEventListener("click", () => exportPDF());
     $("#btn-export-dual-xlsx")?.addEventListener("click", () => exportDualWorkbook());
+
+    // Prefetch feeds off the critical path (shared cache for all views)
+    if (typeof requestIdleCallback === "function") {
+      requestIdleCallback(() => window.IKEDCFeeds?.refresh?.(), { timeout: 2500 });
+    } else {
+      setTimeout(() => window.IKEDCFeeds?.refresh?.(), 600);
+    }
 
     const hash = (location.hash || "#intelligence").replace("#", "");
     showView(["intelligence", "coverage", "story"].includes(hash) ? hash : "intelligence");

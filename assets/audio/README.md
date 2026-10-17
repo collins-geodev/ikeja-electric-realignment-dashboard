@@ -1,9 +1,8 @@
 ﻿# Ambient instrumental
 
-Royalty-free soft instrumental loop hosted locally for the dashboard ambience control.
+Quiet background loop for the dashboard (user-provided OneDrive track).
 
-- UI label: **Ambient instrumental**
-- Playback: `js/audio.js` prefers `ambient-instrumental.m4a`, falls back to `.mp3`
-- Not copyrighted Yanni / Kenny G recordings
-
-Source master (`ambient-full.source.m4a`) is kept for regenerating the loop and is optional for runtime.
+- UI label: **Play instrumental** / **Mute instrumental**
+- Files: `ambient-instrumental.mp3` and `.m4a`
+- Trimmed with ffmpeg from **3:20 (200s)** to end so the loop is the instrumental section
+- Playback: `js/audio.js` — autoplay on load (muted-unlock fallback), `loop`, volume ~0.2

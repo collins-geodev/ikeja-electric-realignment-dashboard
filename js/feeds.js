@@ -26,6 +26,11 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
 
+  function scheduleTask(fn) {
+    if (typeof requestIdleCallback === "function") requestIdleCallback(() => fn(), { timeout: 1200 });
+    else setTimeout(fn, 0);
+  }
+
   function renderInto(el, data, opts = {}) {
     if (!el) return;
     const limit = opts.limit || 10;
@@ -121,16 +126,10 @@
       el.dataset.ready = "1";
       el.innerHTML = `<div class="live-feed-empty">Loading live feeds…</div>`;
     }
-    // Non-blocking
-    queueTask(() => refreshAll(false));
+    scheduleTask(() => refreshAll(false));
     if (!timer) {
       timer = window.setInterval(() => refreshAll(false), REFRESH_MS);
     }
-  }
-
-  function scheduleTask(fn) {
-    if (typeof requestIdleCallback === "function") requestIdleCallback(() => fn(), { timeout: 1200 });
-    else setTimeout(fn, 0);
   }
 
   window.IKEDCFeeds = { mount, refresh: () => refreshAll(true) };

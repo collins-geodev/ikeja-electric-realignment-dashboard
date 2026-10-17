@@ -1332,17 +1332,10 @@
     wireCombos();
     wireUploadExport();
 
-    const [dashRes, feedRes, labelRes, lagosRes] = await Promise.all([
-      fetch("data/dashboard.json"),
-      fetch("data/feeders.geojson"),
-      fetch("data/map_labels.json"),
-      fetch("data/lagos_boundary.geojson"),
-    ]);
+    // Critical path: dashboard JSON first so KPIs/filters paint ASAP
+    const dashRes = await fetch("data/dashboard.json");
     if (!dashRes.ok) throw new Error("Failed to load dashboard.json");
     state.data = await dashRes.json();
-    state.feedersGeo = feedRes.ok ? await feedRes.json() : { type: "FeatureCollection", features: [] };
-    state.labels = labelRes.ok ? await labelRes.json() : { bu: [], ut: [] };
-    state.lagos = lagosRes.ok ? await lagosRes.json() : null;
 
     const meta = document.getElementById("footer-meta");
     if (meta) {
@@ -1350,8 +1343,33 @@
         `${state.data.meta.title} · exported ${state.data.meta.generated} · ${state.data.meta.source}`;
     }
 
-    refreshAll({ zoom: true });
-    initMap();
+    // Light UI first (no map yet)
+    renderKPIs();
+    renderCompare();
+    populateCombos();
+    renderUTTable();
+    renderActiveTabCharts(true);
+
+    // Defer heavy geo + map to next frames (keeps clicks/filters snappy during load)
+    const schedule = (fn, timeout = 1200) => {
+      if (typeof requestIdleCallback === "function") requestIdleCallback(() => fn(), { timeout });
+      else setTimeout(fn, 0);
+    };
+
+    schedule(async () => {
+      const [feedRes, labelRes, lagosRes] = await Promise.all([
+        fetch("data/feeders.geojson"),
+        fetch("data/map_labels.json"),
+        fetch("data/lagos_boundary.geojson"),
+      ]);
+      state.feedersGeo = feedRes.ok ? await feedRes.json() : { type: "FeatureCollection", features: [] };
+      state.labels = labelRes.ok ? await labelRes.json() : { bu: [], ut: [] };
+      state.lagos = lagosRes.ok ? await lagosRes.json() : null;
+      requestAnimationFrame(() => {
+        initMap();
+        if (state.activeTab === "feeders") renderFeederCharts();
+      });
+    }, 800);
   }
 
   boot().catch((err) => {

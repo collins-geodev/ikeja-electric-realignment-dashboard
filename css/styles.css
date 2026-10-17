@@ -290,8 +290,14 @@ body {
     0 0 22px rgba(200, 69, 44, 0.18);
 }
 [data-theme="light"] .eyebrow-glow {
-  color: #92400e;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+  color: #7c2d12;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85),
+    0 0 0.5px rgba(15, 28, 46, 0.45);
+}
+[data-theme="light"] .story-credit {
+  color: #7c2d12;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 @keyframes gis-scroll {
   from { transform: translateX(0); }
@@ -883,7 +889,20 @@ button.kpi .value {
 }
 .cov-right { display: grid; gap: 0.8rem; }
 .cov-feed-card .card-head { display: flex; justify-content: space-between; gap: 0.5rem; align-items: start; }
+.intel-feed-card {
+  margin: 0 0 0.9rem;
+}
+.intel-feed-card .card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: start;
+}
 .live-feed-host { max-height: 440px; overflow: auto; }
+.live-feed-host--compact { max-height: 220px; }
+.live-feed-host--compact .live-feed-list {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
 .live-feed-meta {
   display: flex;
   flex-wrap: wrap;
