@@ -25,7 +25,7 @@
     <div class="chrome-right">
       <button type="button" class="btn btn-ghost" id="btn-reset">Reset</button>
       <button type="button" class="btn btn-ghost" id="btn-theme">Light mode</button>
-      <button type="button" class="btn btn-ghost" id="btn-audio">Play ambience</button>
+      <button type="button" class="btn btn-ghost" id="btn-audio" title="Soft royalty-free instrumental pad">Play ambient instrumental</button>
       <button type="button" class="btn btn-secondary" id="btn-export-pdf">Export PDF</button>
       <button type="button" class="btn btn-primary" id="btn-export-dual-xlsx">Excel (both)</button>
     </div>
@@ -118,12 +118,12 @@
           </div>
         </div>
         <div class="io-actions">
-          <label class="btn btn-secondary">
-            Upload layers
+          <label class="btn btn-secondary" title="Upload GeoJSON, KML, shapefile ZIP, or CSV">
+            Upload
             <input id="upload-input" type="file" multiple accept=".geojson,.json,.kml,.kmz,.zip,.shp,.dbf,.prj,.cpg,.gpkg,.gdb,.csv,application/zip" hidden />
           </label>
           <div class="export-wrap">
-            <button type="button" class="btn btn-primary" id="export-btn">Export ▾</button>
+            <button type="button" class="btn btn-primary" id="export-btn">Export</button>
             <div class="export-menu" id="export-menu" hidden>
               <button type="button" data-export="csv-uts">Undertakings CSV</button>
               <button type="button" data-export="csv-bus">Business Units CSV</button>
@@ -315,62 +315,86 @@
     </header>
 
     <div class="coverage-layout">
-      <aside class="cov-kpis">
-        <article class="cov-kpi">
-          <div class="label">Total coverage area</div>
-          <div class="value accent-orange" id="cov-kpi-area">—</div>
-          <div class="hint">2026 Business Unit footprint</div>
-        </article>
-        <article class="cov-kpi">
-          <div class="label" id="cov-kpi-alt-label">DT density</div>
-          <div class="value accent-yellow" id="cov-kpi-alt">—</div>
-          <div class="hint" id="cov-kpi-alt-hint">transformers per km²</div>
-        </article>
-        <article class="cov-kpi">
-          <div class="label">Active feeders</div>
-          <div class="value accent-cyan" id="cov-kpi-feeders">—</div>
-          <div class="hint">11 kV + 33 kV tagged network</div>
-        </article>
-        <article class="cov-kpi">
-          <div class="label">Transformers in network</div>
-          <div class="value accent-blue" id="cov-kpi-dts">—</div>
-          <div class="hint">Public + private DT register</div>
-        </article>
-        <article class="cov-kpi">
-          <div class="label">Mean register agreement</div>
-          <div class="value accent-green" id="cov-kpi-agree">—</div>
-          <div class="hint">DT register vs 2026 UT polygons</div>
-        </article>
+      <aside class="cov-left-col">
+        <div class="cov-kpis">
+          <button type="button" class="cov-kpi" data-cov-filter="area">
+            <div class="label">Total coverage area</div>
+            <div class="value accent-orange" id="cov-kpi-area">—</div>
+            <div class="hint">2026 Business Unit footprint</div>
+          </button>
+          <button type="button" class="cov-kpi" data-cov-filter="density">
+            <div class="label" id="cov-kpi-alt-label">DT density</div>
+            <div class="value accent-yellow" id="cov-kpi-alt">—</div>
+            <div class="hint" id="cov-kpi-alt-hint">transformers per km²</div>
+          </button>
+          <button type="button" class="cov-kpi" data-cov-filter="feeders">
+            <div class="label">Active feeders</div>
+            <div class="value accent-cyan" id="cov-kpi-feeders">—</div>
+            <div class="hint">11 kV + 33 kV tagged network</div>
+          </button>
+          <button type="button" class="cov-kpi" data-cov-filter="dts">
+            <div class="label">Transformers in network</div>
+            <div class="value accent-blue" id="cov-kpi-dts">—</div>
+            <div class="hint">Public + private DT register</div>
+          </button>
+          <button type="button" class="cov-kpi" data-cov-filter="agree">
+            <div class="label">Mean register agreement</div>
+            <div class="value accent-green" id="cov-kpi-agree">—</div>
+            <div class="hint">DT register vs 2026 UT polygons</div>
+          </button>
+        </div>
+
+        <div class="card cov-filter-card">
+          <div class="card-head">
+            <h2>Filter by BU</h2>
+            <p>Click to focus map, charts, and feeder drill-down</p>
+          </div>
+          <div class="cov-bu-chips" id="cov-bu-chips"></div>
+          <button type="button" class="btn btn-ghost" id="cov-clear-filter" style="margin-top:0.55rem;width:100%">Clear focus</button>
+        </div>
       </aside>
 
       <section class="cov-center">
         <div class="card map-card cov-map-card">
           <div class="card-head">
             <h2>Realignment zones</h2>
-            <p>Lagos State boundary · BU fills · feeder corridors</p>
+            <p id="cov-map-subtitle">Hybrid satellite · Lagos boundary · BU fills · feeder corridors</p>
           </div>
           <div id="coverage-map" class="map"></div>
+        </div>
+        <div class="cov-insights" id="cov-insights"></div>
+        <div class="card">
+          <div class="card-head">
+            <h2>Top feeders in focus</h2>
+            <p>Click a feeder to highlight it on the map</p>
+          </div>
+          <ul class="cov-feeder-list" id="cov-feeder-list"></ul>
         </div>
       </section>
 
       <aside class="cov-right">
         <div class="card">
           <div class="card-head">
-            <h2>Feeder load by BU</h2>
-            <p>DT share across Business Units</p>
+            <h2>DT load by BU</h2>
+            <p>Click a slice to filter</p>
           </div>
           <div class="chart-box h-220"><canvas id="chart-cov-band"></canvas></div>
         </div>
         <div class="card">
           <div class="card-head">
             <h2>Register agreement by BU</h2>
-            <p>Mean UT agreement inside each Business Unit</p>
+            <p>Click a bar to filter</p>
           </div>
           <div class="chart-box h-220"><canvas id="chart-cov-phase"></canvas></div>
         </div>
         <div class="card cov-feed-card">
-          <div class="card-head"><h2>Feed</h2><p>Live spatial insights</p></div>
-          <ul class="cov-feed" id="cov-feed"></ul>
+          <div class="card-head">
+            <div>
+              <h2>Live feeds</h2>
+              <p>Ikeja Electric · NERC · LASERC · News · Nairametrics</p>
+            </div>
+          </div>
+          <div id="cov-feed" class="live-feed-host"></div>
         </div>
       </aside>
     </div>
@@ -381,32 +405,71 @@
     <header class="story-hero">
       <img class="brand-logo" src="assets/ikeja-electric-logo.png" alt="Ikeja Electric" />
       <p class="eyebrow-glow story-credit">Powered by the GIS Team</p>
-      <h1 class="story-title">Five Business Units. One Intelligent Network.</h1>
+      <h1 class="story-title">Five Business Units, One Network</h1>
       <p class="story-lead">
-        Ikeja Electric’s 2026 realignment consolidates the franchise into 5 Business Units and 38 Undertakings —
-        with every distribution transformer, feeder, and boundary visible in one command view.
+        In 2026, Ikeja Electric reorganised its distribution franchise from six Business Units to five.
+        The Abule Egba Business Unit was dissolved and its service areas were absorbed by its neighbours —
+        every transformer, Undertaking, and boundary reassigned, checked, and redrawn.
       </p>
-      <button type="button" class="btn btn-primary" data-goto="intelligence">Open intelligence dashboard</button>
+      <blockquote class="story-quote">
+        2,717 transformers changed Business Unit. 54 Undertakings became 38. And every one of the 20,789 transformers now has a clear home.
+      </blockquote>
+      <div class="story-cta-row" style="justify-content:center">
+        <button type="button" class="btn btn-primary" data-goto="intelligence">Open intelligence dashboard</button>
+        <button type="button" class="btn btn-accent" data-goto="coverage">Open coverage dashboard</button>
+      </div>
     </header>
 
-    <section class="story-section">
-      <h2>Why the realignment matters</h2>
+    <nav class="story-nav" aria-label="Story chapters">
+      <a href="#story-glance">At a glance</a>
+      <a href="#story-before">Before → after</a>
+      <a href="#story-bus">Five BUs</a>
+      <a href="#story-workload">Workload</a>
+      <a href="#story-quality">Quality</a>
+      <a href="#story-method">Method</a>
+      <a href="#story-explore">Explore</a>
+    </nav>
+
+    <section class="story-section reveal" id="story-glance">
+      <h2>The realignment at a glance</h2>
       <p>
-        Clearer territories improve field response, asset accountability, and customer service routing.
-        The GIS Team built this dashboard so leadership and operations can see the before→after story on one map.
+        Clearer territories improve field response, asset accountability, and customer routing.
+        This story uses the same register and polygon data powering the live dashboards — no invented claims.
       </p>
-      <div class="story-stats">
-        <div><strong>5</strong><span>Business Units</span></div>
-        <div><strong>38</strong><span>Undertakings</span></div>
-        <div><strong>20,789</strong><span>Distribution transformers</span></div>
-        <div><strong>418</strong><span>MV feeders</span></div>
+      <div class="story-stats" id="story-stats"></div>
+    </section>
+
+    <section class="story-section reveal" id="story-before">
+      <h2>Before and after</h2>
+      <p>
+        Six pre-2026 Business Units became five contiguous 2026 territories.
+        Abule Egba’s transformers moved primarily into Ikeja and Akowonjo; Oshodi and Shomolu each consolidated from 11 Undertakings to 6.
+      </p>
+      <div class="story-media-strip">
+        <div id="story-map" class="story-map-mini"></div>
+        <div class="chart-box h-260"><canvas id="story-chart-compare"></canvas></div>
+      </div>
+      <div class="story-cards" style="margin-top:1rem">
+        <article><h3>2,717 DTs moved BU</h3><p>13.1% of the network changed Business Unit assignment.</p></article>
+        <article><h3>54 → 38 UTs</h3><p>Undertakings consolidated while Ikeja grew from 8 to 10.</p></article>
+        <article><h3>Mean agreement 97.6%</h3><p>Register UT vs 2026 polygon match across the franchise.</p></article>
       </div>
     </section>
 
-    <section class="story-section">
+    <section class="story-section reveal" id="story-bus">
+      <h2>The new Business Units</h2>
+      <p>Scroll each chapter of the franchise — density, area, and workload differ sharply.</p>
+      <div class="story-bu-grid" id="story-bu-cards"></div>
+    </section>
+
+    <section class="story-section reveal" id="story-workload">
       <h2>Workload across the new BUs</h2>
-      <p>Public and private DT counts for each 2026 Business Unit.</p>
+      <p>Public and private DT counts, plus density by Business Unit from the operational register.</p>
       <div class="chart-box h-280 story-chart"><canvas id="story-chart-bu"></canvas></div>
+      <div class="story-split-charts">
+        <div class="chart-box h-240"><canvas id="story-chart-density"></canvas></div>
+        <div class="chart-box h-240"><canvas id="story-chart-own"></canvas></div>
+      </div>
       <div class="table-wrap story-table">
         <table id="story-bu-table">
           <thead>
@@ -417,21 +480,32 @@
       </div>
     </section>
 
-    <section class="story-section story-media">
-      <h2>From register to geography</h2>
+    <section class="story-section reveal" id="story-quality">
+      <h2>How we know it’s right</h2>
       <p>
-        Every DT carries the new nomenclature and feeder name from the operational register.
-        Filters on the intelligence dashboard fly the map to the selected BU, UT, feeder, or transformer.
+        Each 2026 boundary was checked against the transformer registers.
+        In every Undertaking, more than 90% of transformers inside the boundary carry a matching 2026 assignment; most score above 97%.
       </p>
+      <div class="chart-box h-260"><canvas id="story-chart-agree"></canvas></div>
       <div class="story-cards">
-        <article><h3>Spatial truth</h3><p>BU and UT polygons with Lagos State context.</p></article>
-        <article><h3>Network truth</h3><p>11 kV and 33 kV corridors with boundary fidelity.</p></article>
-        <article><h3>Asset truth</h3><p>Capacity, ownership, and reassignment analytics.</p></article>
+        <article><h3>Spatial truth</h3><p>BU and UT polygons with Lagos State context on hybrid imagery.</p></article>
+        <article><h3>Network truth</h3><p>11 kV and 33 kV corridors with boundary fidelity metrics.</p></article>
+        <article><h3>Asset truth</h3><p>Capacity, ownership, and reassignment analytics from the DT register.</p></article>
       </div>
     </section>
 
-    <section class="story-section story-cta">
-      <h2>Explore further</h2>
+    <section class="story-section reveal" id="story-method">
+      <h2>How we did it</h2>
+      <p>
+        The GIS Team assigned each of the 20,789 transformers a 2026 Undertaking and Business Unit,
+        then redrew the boundaries so every Undertaking records which former Undertakings it was formed from —
+        keeping the history of every boundary auditable. Customer identifiers were excluded from published layers.
+      </p>
+    </section>
+
+    <section class="story-section story-cta reveal" id="story-explore">
+      <h2>Explore the data</h2>
+      <p>Filter by Business Unit or Undertaking on the intelligence dashboard, or watch live industry feeds on Coverage.</p>
       <div class="story-cta-row">
         <button type="button" class="btn btn-accent" data-goto="coverage">Coverage dashboard</button>
         <button type="button" class="btn btn-primary" data-goto="intelligence">Intelligence dashboard</button>
@@ -449,6 +523,7 @@
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/feeds.js"></script>
   <script src="js/experience.js"></script>
   <script>
     document.getElementById("btn-export-pdf-story")?.addEventListener("click", () => {

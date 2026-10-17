@@ -32,12 +32,19 @@
     return {
       theme,
       light,
-      text: light ? "#142033" : "#e8eef6",
-      muted: light ? "#5b6b7c" : "#93a4b8",
-      border: light ? "rgba(20,32,51,0.12)" : "rgba(255,255,255,0.08)",
-      labelStroke: light ? "rgba(255,255,255,0.92)" : "rgba(12,17,24,0.88)",
-      labelFill: light ? "#142033" : "#f4f7fb",
+      text: light ? "#0f1c2e" : "#eef3fa",
+      muted: light ? "#3d4f63" : "#a8b7c9",
+      border: light ? "rgba(15,30,50,0.14)" : "rgba(255,255,255,0.10)",
+      labelStroke: light ? "rgba(255,255,255,0.96)" : "rgba(8,12,18,0.94)",
+      labelFill: light ? "#0f1c2e" : "#ffffff",
     };
+  };
+
+  const ESRI_TILES = {
+    imagery: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    labels: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+    lightGray: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    darkGray: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
   };
 
   const chartDefaults = () => {
@@ -162,14 +169,16 @@
         chart.options.scales?.x?.stacked ||
         chart.options.scales?.y?.stacked
       );
-      const fontSize = cfg.fontSize || (isRound ? 10 : 11);
+      const fontSize = cfg.fontSize || (isRound ? 12 : 12);
 
       const drawLabel = (text, x, y, baseline = "bottom") => {
         ctx.save();
-        ctx.font = `600 ${fontSize}px 'IBM Plex Sans', system-ui, sans-serif`;
+        ctx.font = `700 ${fontSize}px 'IBM Plex Sans', system-ui, sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = baseline;
-        ctx.lineWidth = 3;
+        ctx.lineJoin = "round";
+        ctx.miterLimit = 2;
+        ctx.lineWidth = Math.max(4, Math.round(fontSize / 2.6));
         ctx.strokeStyle = t.labelStroke;
         ctx.fillStyle = t.labelFill;
         ctx.strokeText(text, x, y);
@@ -199,9 +208,9 @@
           if (isRound) {
             const start = el.startAngle;
             const end = el.endAngle;
-            if (end - start < 0.12) return;
+            if (end - start < 0.18) return;
             const mid = (start + end) / 2;
-            const r = (el.innerRadius + el.outerRadius) / 2;
+            const r = el.innerRadius + (el.outerRadius - el.innerRadius) * 0.62;
             drawLabel(text, el.x + Math.cos(mid) * r, el.y + Math.sin(mid) * r, "middle");
             return;
           }
@@ -209,12 +218,13 @@
           const props = el.getProps(["x", "y", "base", "width", "height"], true);
           const barH = Math.abs((props.base ?? props.y) - props.y);
           if (stacked) {
-            if (barH < 14) return;
+            if (barH < 16) return;
             const midY = ((props.base ?? props.y) + props.y) / 2;
             drawLabel(text, props.x, midY, "middle");
           } else {
             if (barH < 4 && Number(raw) === 0) return;
-            drawLabel(text, props.x, props.y - 3, "bottom");
+            const above = props.y < (props.base ?? props.y);
+            drawLabel(text, props.x, above ? props.y - 5 : props.y + 12, above ? "bottom" : "top");
           }
         });
       });
@@ -245,7 +255,7 @@
             display: showLabels,
             decimals: opts.labelDecimals ?? 1,
             suffix: opts.labelSuffix || "",
-            fontSize: opts.labelFontSize || 11,
+            fontSize: opts.labelFontSize || 12,
           },
         },
         scales: opts.scales || {
@@ -268,8 +278,8 @@
         maintainAspectRatio: false,
         animation: false,
         plugins: {
-          legend: { position: "bottom", labels: { boxWidth: 10 } },
-          valueLabels: { display: true, decimals: 0, fontSize: 10 },
+          legend: { position: "bottom", labels: { color: chartTheme().text, boxWidth: 10 } },
+          valueLabels: { display: true, decimals: 0, fontSize: 12 },
         },
         cutout: "58%",
       },
@@ -690,23 +700,43 @@
     }
   }
 
-  function setMapTheme(theme) {
+  function makeHybridBasemap() {
+    return L.layerGroup([
+      L.tileLayer(ESRI_TILES.imagery, { attribution: "Tiles © Esri", maxZoom: 19 }),
+      L.tileLayer(ESRI_TILES.labels, { attribution: "Labels © Esri", maxZoom: 19, opacity: 0.92 }),
+    ]);
+  }
+
+  function setMapTheme(_theme) {
     if (!state.map) return;
-    if (state.baseTile) state.map.removeLayer(state.baseTile);
-    const url = theme === "light"
-      ? "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
-      : "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}";
-    state.baseTile = L.tileLayer(url, { attribution: "Tiles © Esri", maxZoom: 16 });
-    state.baseTile.addTo(state.map);
-    state.baseTile.bringToBack();
+    // Default remains hybrid satellite; theme no longer swaps the basemap away from imagery.
+    if (!state.baseTile) {
+      state.baseTile = makeHybridBasemap();
+      state.baseTile.addTo(state.map);
+      state.baseTile.bringToBack();
+    }
   }
 
   function initMap() {
     if (state.map) return;
     state.map = L.map("map", { zoomControl: true }).setView([6.6, 3.45], 11);
-    const theme = document.documentElement.getAttribute("data-theme") || "dark";
-    setMapTheme(theme);
+    state.baseTile = makeHybridBasemap();
+    state.baseTile.addTo(state.map);
+    const lightCanvas = L.tileLayer(ESRI_TILES.lightGray, { attribution: "Tiles © Esri", maxZoom: 16 });
+    const darkCanvas = L.tileLayer(ESRI_TILES.darkGray, { attribution: "Tiles © Esri", maxZoom: 16 });
+    L.control.layers(
+      {
+        "Hybrid satellite": state.baseTile,
+        "Light canvas": lightCanvas,
+        "Dark canvas": darkCanvas,
+      },
+      null,
+      { position: "topright", collapsed: true }
+    ).addTo(state.map);
     state.map.on("zoomend", updateLabelVisibility);
+    state.map.on("baselayerchange", (e) => {
+      state.baseTile = e.layer;
+    });
     redrawMapLayers({ zoom: true });
   }
 
