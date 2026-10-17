@@ -23,6 +23,10 @@
     const btn = $("#btn-theme");
     if (btn) btn.textContent = theme === "dark" ? "Light mode" : "Dark mode";
     window.IKEDC?.setMapTheme?.(theme);
+    window.IKEDC?.refreshChartTheme?.();
+    Object.values(experience.coverageCharts).forEach((c) => {
+      try { c.update("none"); } catch (_) { /* ignore */ }
+    });
     if (experience.coverageMap) setCoverageTiles(theme);
   }
 
@@ -253,8 +257,11 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { position: "bottom", labels: { boxWidth: 10, color: getComputedStyle(document.body).color } } },
-          cutout: "58%",
+          plugins: {
+            legend: { position: "bottom", labels: { boxWidth: 10, color: getComputedStyle(document.body).color } },
+            valueLabels: { display: true, decimals: 0, fontSize: 10 },
+          },
+          cutout: "52%",
         },
       });
     }
@@ -276,9 +283,10 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          layout: { padding: { top: 20 } },
           plugins: {
             legend: { display: false },
-            valueLabels: { display: true, suffix: "%" },
+            valueLabels: { display: true, suffix: "%", decimals: 1, fontSize: 11 },
           },
           scales: {
             x: { grid: { display: false } },
@@ -325,7 +333,11 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { valueLabels: { display: true }, legend: { position: "bottom" } },
+        layout: { padding: { top: 8 } },
+        plugins: {
+          valueLabels: { display: true, decimals: 0, fontSize: 10 },
+          legend: { position: "bottom" },
+        },
         scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true } },
       },
     });
@@ -395,11 +407,11 @@
 
     const prev = experience.view;
     showView("intelligence");
-    await snap("#view-intelligence", "IKEDC Network Realignment Intelligence 2026");
+    await snap("#view-intelligence", "IE Network Monitoring Dashboard");
     pdf.addPage();
     showView("coverage");
-    await snap("#view-coverage", "Network Realignment & Coverage Dashboard");
-    pdf.save("IKEDC_Realignment_Dashboards.pdf");
+    await snap("#view-coverage", "IE Network Monitoring Dashboard · Coverage");
+    pdf.save("IE_Network_Monitoring_Dashboard.pdf");
     showView(prev);
   }
 

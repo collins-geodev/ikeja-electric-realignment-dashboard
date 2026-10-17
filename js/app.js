@@ -26,11 +26,33 @@
     rendered: { overview: false, assets: false, feeders: false },
   };
 
+  const chartTheme = () => {
+    const theme = document.documentElement.getAttribute("data-theme") || "dark";
+    const light = theme === "light";
+    return {
+      theme,
+      light,
+      text: light ? "#142033" : "#e8eef6",
+      muted: light ? "#5b6b7c" : "#93a4b8",
+      border: light ? "rgba(20,32,51,0.12)" : "rgba(255,255,255,0.08)",
+      labelStroke: light ? "rgba(255,255,255,0.92)" : "rgba(12,17,24,0.88)",
+      labelFill: light ? "#142033" : "#f4f7fb",
+    };
+  };
+
   const chartDefaults = () => {
-    Chart.defaults.color = "#93a4b8";
-    Chart.defaults.borderColor = "rgba(255,255,255,0.08)";
+    const t = chartTheme();
+    Chart.defaults.color = t.muted;
+    Chart.defaults.borderColor = t.border;
     Chart.defaults.font.family = "'IBM Plex Sans', system-ui, sans-serif";
   };
+
+  function refreshChartTheme() {
+    chartDefaults();
+    Object.values(state.charts).forEach((c) => {
+      try { c.update("none"); } catch (_) { /* ignore */ }
+    });
+  }
 
   const buColor = (name) =>
     state.data.business_units.find((b) => b.bu_name === name)?.fill_hex || "#6b7c90";
@@ -128,26 +150,72 @@
     afterDatasetsDraw(chart) {
       const cfg = chart.options.plugins?.valueLabels;
       if (!cfg?.display) return;
+      const type = chart.config.type;
+      // Never clutter point charts (e.g. Length vs DT load scatter)
+      if (type === "scatter" || type === "bubble" || type === "line") return;
       const { ctx } = chart;
       const suffix = cfg.suffix || "";
       const decimals = cfg.decimals ?? 1;
+      const t = chartTheme();
+      const isRound = type === "doughnut" || type === "pie";
+      const stacked = !!(
+        chart.options.scales?.x?.stacked ||
+        chart.options.scales?.y?.stacked
+      );
+      const fontSize = cfg.fontSize || (isRound ? 10 : 11);
+
+      const drawLabel = (text, x, y, baseline = "bottom") => {
+        ctx.save();
+        ctx.font = `600 ${fontSize}px 'IBM Plex Sans', system-ui, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = baseline;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = t.labelStroke;
+        ctx.fillStyle = t.labelFill;
+        ctx.strokeText(text, x, y);
+        ctx.fillText(text, x, y);
+        ctx.restore();
+      };
+
+      const formatVal = (raw) => {
+        if (raw == null || raw === "") return null;
+        if (typeof raw === "number") {
+          if (!Number.isFinite(raw)) return null;
+          return Number.isInteger(raw) ? fmt.format(raw) : Number(raw).toFixed(decimals);
+        }
+        return String(raw);
+      };
+
       chart.data.datasets.forEach((ds, di) => {
         if (ds.hidden) return;
         const meta = chart.getDatasetMeta(di);
+        if (meta.hidden) return;
         meta.data.forEach((el, i) => {
           const raw = ds.data[i];
-          if (raw == null) return;
-          const val = typeof raw === "number"
-            ? (Number.isInteger(raw) ? fmt.format(raw) : raw.toFixed(decimals))
-            : raw;
-          const { x, y } = el.tooltipPosition();
-          ctx.save();
-          ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--text").trim() || "#e8eef6";
-          ctx.font = "600 11px 'IBM Plex Sans', system-ui, sans-serif";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "bottom";
-          ctx.fillText(`${val}${suffix}`, x, y - 4);
-          ctx.restore();
+          const formatted = formatVal(typeof raw === "object" && raw != null ? raw.y ?? raw.x : raw);
+          if (formatted == null) return;
+          const text = `${formatted}${suffix}`;
+
+          if (isRound) {
+            const start = el.startAngle;
+            const end = el.endAngle;
+            if (end - start < 0.12) return;
+            const mid = (start + end) / 2;
+            const r = (el.innerRadius + el.outerRadius) / 2;
+            drawLabel(text, el.x + Math.cos(mid) * r, el.y + Math.sin(mid) * r, "middle");
+            return;
+          }
+
+          const props = el.getProps(["x", "y", "base", "width", "height"], true);
+          const barH = Math.abs((props.base ?? props.y) - props.y);
+          if (stacked) {
+            if (barH < 14) return;
+            const midY = ((props.base ?? props.y) + props.y) / 2;
+            drawLabel(text, props.x, midY, "middle");
+          } else {
+            if (barH < 4 && Number(raw) === 0) return;
+            drawLabel(text, props.x, props.y - 3, "bottom");
+          }
         });
       });
     },
@@ -161,6 +229,7 @@
     destroyChart(key);
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
+    const showLabels = opts.valueLabels !== false;
     state.charts[key] = new Chart(ctx, {
       type: opts.type || "bar",
       data: { labels, datasets },
@@ -168,11 +237,16 @@
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
-        layout: { padding: { top: opts.valueLabels ? 18 : 0 } },
+        layout: { padding: { top: showLabels && !opts.stacked ? 20 : 8, right: 4, left: 4 } },
         plugins: {
           legend: { display: opts.legend !== false, position: "bottom", labels: { boxWidth: 12 } },
           tooltip: { mode: "index", intersect: false },
-          valueLabels: { display: !!opts.valueLabels, decimals: opts.labelDecimals ?? 1, suffix: opts.labelSuffix || "" },
+          valueLabels: {
+            display: showLabels,
+            decimals: opts.labelDecimals ?? 1,
+            suffix: opts.labelSuffix || "",
+            fontSize: opts.labelFontSize || 11,
+          },
         },
         scales: opts.scales || {
           x: { stacked: !!opts.stacked, grid: { display: false } },
@@ -193,8 +267,11 @@
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 10 } } },
-        cutout: "62%",
+        plugins: {
+          legend: { position: "bottom", labels: { boxWidth: 10 } },
+          valueLabels: { display: true, decimals: 0, fontSize: 10 },
+        },
+        cutout: "58%",
       },
     });
   }
@@ -244,7 +321,8 @@
       { label: "Undertakings", value: empty(state.uts) ? uts.length : state.uts.length, hint: empty(state.uts) ? (empty(state.bus) ? `from ${k.ut_existing} previous` : "in selected BU(s)") : state.uts.join(", "), open: "ut" },
       { label: "Mean register agreement", value: pct(meanAgree), hint: "DT register vs 2026 UT polygon" },
       { label: "Feeders", value: feederCount, hint: `${feeders.filter((f) => f.voltage === "11kV").length || "—"} × 11 kV · ${feeders.filter((f) => f.voltage === "33kV").length || "—"} × 33 kV`, open: "feeder" },
-      { label: "Injection / TCN", value: `${k.iss} / ${k.tcn}`, hint: `${fmt.format(k.loads_33kv)} 33 kV loads in TOC` },
+      { label: "Injection substations", value: k.iss, hint: `${fmt.format(k.loads_33kv)} 33 kV loads in TOC` },
+      { label: "TCN stations", value: k.tcn, hint: "transmission stations" },
     ];
 
     document.getElementById("kpi-strip").innerHTML = items
@@ -384,7 +462,7 @@
     barChart("buDt", "chart-bu-dt", bus.map((b) => b.bu_name), [
       { label: "Public", data: bus.map((b) => b.dt_public), backgroundColor: "#1f6fb2", borderRadius: 6 },
       { label: "Private", data: bus.map((b) => b.dt_private), backgroundColor: "#c8452c", borderRadius: 6 },
-    ], { stacked: true });
+    ], { stacked: true, labelDecimals: 0 });
 
     const uts = filteredUTs().slice().sort((a, b) => a.agreement_pct - b.agreement_pct).slice(0, 20);
     barChart("agree", "chart-agreement", uts.map((u) => u.ut_name), [
@@ -396,6 +474,8 @@
       },
     ], {
       legend: false,
+      labelSuffix: "%",
+      labelDecimals: 1,
       scales: {
         x: { ticks: { maxRotation: 55, minRotation: 35, font: { size: 10 } }, grid: { display: false } },
         y: { min: 90, max: 100, ticks: { callback: (v) => `${v}%` } },
@@ -454,6 +534,7 @@
       { label: "DTs moved", data: re.map((r) => r.count), backgroundColor: "#c8452c", borderRadius: 5 },
     ], {
       legend: false,
+      labelDecimals: 0,
       scales: {
         x: { ticks: { maxRotation: 45, minRotation: 30, font: { size: 9 } }, grid: { display: false } },
         y: { beginAtZero: true, ticks: { callback: (v) => fmt.format(v) } },
@@ -466,7 +547,7 @@
       .sort((a, b) => binsOrder.indexOf(a.name) - binsOrder.indexOf(b.name));
     barChart("cap", "chart-capacity", bins.map((b) => b.name), [
       { label: "DTs", data: bins.map((b) => b.count), backgroundColor: "#d99a1e", borderRadius: 6 },
-    ], { legend: false });
+    ], { legend: false, labelDecimals: 0 });
 
     state.rendered.assets = true;
   }
@@ -479,7 +560,7 @@
     barChart("fbu", "chart-feeder-bu", byBu.map((r) => r.bu_name), [
       { label: "Feeders", data: byBu.map((r) => r.feeder_count), backgroundColor: "#1f6fb2", borderRadius: 6 },
       { label: "Length (km)", data: byBu.map((r) => Math.round(r.len_km)), backgroundColor: "#d99a1e", borderRadius: 6 },
-    ]);
+    ], { labelDecimals: 0 });
 
     const sample = filteredFeedersMeta().slice(0, 180);
     destroyChart("scatter");
@@ -503,7 +584,10 @@
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
-        plugins: { legend: { position: "bottom" } },
+        plugins: {
+          legend: { position: "bottom" },
+          valueLabels: { display: false },
+        },
         scales: {
           x: { title: { display: true, text: "Length (km)" }, beginAtZero: true },
           y: { title: { display: true, text: "DT count" }, beginAtZero: true },
@@ -520,7 +604,7 @@
     ];
     barChart("fid", "chart-fidelity", buckets.map((b) => b.name), [
       { label: "Feeders", data: buckets.map((b) => b.count), backgroundColor: ["#2e8b57", "#d99a1e", "#c8452c", "#6b7c90"], borderRadius: 6 },
-    ], { legend: false });
+    ], { legend: false, labelDecimals: 0 });
 
     renderFeederTable();
     state.rendered.feeders = true;
@@ -1204,6 +1288,7 @@
     getFeedersGeo: () => state.feedersGeo,
     setLagos: (fc) => { state.lagos = fc; if (state.map) redrawMapLayers(); },
     setMapTheme,
+    refreshChartTheme,
     resetFilters,
     resize: () => {
       if (state.map) state.map.invalidateSize();
