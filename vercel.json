@@ -14,6 +14,12 @@
       "headers": [
         { "key": "Cache-Control", "value": "s-maxage=300, stale-while-revalidate=600" }
       ]
+    },
+    {
+      "source": "/api/article",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, max-age=60" }
+      ]
     }
   ]
 }

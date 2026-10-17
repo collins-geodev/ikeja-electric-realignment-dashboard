@@ -120,7 +120,14 @@
     else setTimeout(fn, 0);
   }
 
-  const VIEWER_VERSION = "2";
+  const VIEWER_VERSION = "3";
+  const ARTICLE_ENDPOINTS = ["/api/article", "/api/article.js"];
+  let activeViewerItem = null;
+
+  function articleProxyUrl(articleUrl, view = "page") {
+    const q = `url=${encodeURIComponent(articleUrl)}&view=${encodeURIComponent(view)}`;
+    return `${ARTICLE_ENDPOINTS[0]}?${q}`;
+  }
 
   function ensureViewer() {
     let root = document.getElementById("feed-reader");
@@ -147,27 +154,37 @@
             <h2 id="feed-reader-title">Article</h2>
           </div>
           <div class="feed-reader-actions">
+            <button type="button" class="btn btn-ghost" id="feed-reader-reload" hidden>Reload article</button>
             <a class="btn btn-ghost" id="feed-reader-external" href="#" target="_blank" rel="noopener noreferrer">Open externally</a>
             <button type="button" class="btn btn-secondary" data-feed-close aria-label="Close">Close</button>
           </div>
         </header>
         <div class="feed-reader-body">
+          <div class="feed-reader-loading" id="feed-reader-loading" hidden>
+            <div class="feed-reader-spinner" aria-hidden="true"></div>
+            <p>Loading article in mini browser…</p>
+          </div>
           <div class="feed-reader-frame-wrap" id="feed-reader-frame-wrap" hidden>
-            <iframe id="feed-reader-frame" title="Article preview" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" referrerpolicy="no-referrer"></iframe>
+            <iframe id="feed-reader-frame" title="Article mini browser" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>
           </div>
           <article class="feed-reader-fallback" id="feed-reader-fallback">
-            <p class="feed-reader-fallback-note" id="feed-reader-fallback-note">In-dashboard briefing card. Use Open full article for the publisher’s live page.</p>
+            <p class="feed-reader-fallback-note" id="feed-reader-fallback-note">Briefing card. Open full article loads the publisher page inside this mini browser.</p>
             <h3 id="feed-reader-fallback-title"></h3>
             <p class="feed-reader-fallback-meta" id="feed-reader-fallback-meta"></p>
             <p class="feed-reader-fallback-summary" id="feed-reader-fallback-summary"></p>
             <div class="feed-reader-fallback-actions">
-              <a class="btn btn-primary" id="feed-reader-fallback-link" href="#" target="_blank" rel="noopener noreferrer">Open full article</a>
+              <button type="button" class="btn btn-primary" id="feed-reader-fallback-link">Open full article</button>
             </div>
           </article>
         </div>
       </div>`;
     document.body.appendChild(root);
     return root;
+  }
+
+  function setLoading(on) {
+    const el = document.getElementById("feed-reader-loading");
+    if (el) el.hidden = !on;
   }
 
   function closeViewer() {
@@ -177,25 +194,21 @@
     document.body.classList.remove("feed-reader-open");
     const frame = document.getElementById("feed-reader-frame");
     if (frame) frame.src = "about:blank";
+    setLoading(false);
+    activeViewerItem = null;
   }
 
   function fillFallback(item) {
     const t = document.getElementById("feed-reader-fallback-title");
     const m = document.getElementById("feed-reader-fallback-meta");
     const s = document.getElementById("feed-reader-fallback-summary");
-    const a = document.getElementById("feed-reader-fallback-link");
     const note = document.getElementById("feed-reader-fallback-note");
     if (t) t.textContent = item.title || "Article";
     if (m) m.textContent = [item.sourceName || item.source, fmtWhen(item.publishedAt)].filter(Boolean).join(" · ");
     if (s) s.textContent = plainSummary(item.summary || item.snippet, item.title);
-    if (a) {
-      a.href = item.url || "#";
-      a.hidden = !item.url;
-    }
     if (note) {
-      note.textContent = isHardEmbed(item.url)
-        ? "Google News and many publishers block in-dashboard embedding. Read the briefing below, then open the full article."
-        : "In-dashboard briefing card. Open the full article for the publisher’s live page.";
+      note.textContent =
+        "Open full article loads the story inside this mini browser (publisher page or clean reader). Open externally uses your system browser.";
     }
   }
 
@@ -215,12 +228,53 @@
       frame.removeAttribute("src");
       frame.src = "about:blank";
     }
+    setLoading(false);
     fillFallback(item);
   }
 
-  function showFrame(url, item) {
-    if (!canTryEmbed(url)) {
+  /** Load article through same-origin API so the mini browser can display it */
+  function showArticleBrowser(item, { auto = false } = {}) {
+    if (!item?.url) {
+      showFallback(item || {});
+      return;
+    }
+    const wrap = document.getElementById("feed-reader-frame-wrap");
+    const fallback = document.getElementById("feed-reader-fallback");
+    const frame = document.getElementById("feed-reader-frame");
+    const reload = document.getElementById("feed-reader-reload");
+    if (!wrap || !frame) {
       showFallback(item);
+      return;
+    }
+    if (fallback) {
+      fallback.hidden = true;
+      fallback.setAttribute("aria-hidden", "true");
+    }
+    wrap.hidden = false;
+    wrap.removeAttribute("aria-hidden");
+    if (reload) reload.hidden = false;
+    setLoading(true);
+
+    const proxy = articleProxyUrl(item.url, "page");
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      setLoading(false);
+    };
+    frame.onload = () => finish();
+    frame.onerror = () => {
+      finish();
+      if (!auto) showFallback(item);
+    };
+    frame.src = proxy;
+    window.setTimeout(finish, 12000);
+  }
+
+  function showFrame(url, item) {
+    /* Direct embed only for friendly hosts; otherwise use article API */
+    if (!canTryEmbed(url)) {
+      showArticleBrowser(item || { url });
       return;
     }
     const wrap = document.getElementById("feed-reader-frame-wrap");
@@ -235,48 +289,36 @@
     }
     const frame = document.getElementById("feed-reader-frame");
     if (!frame) return;
-    frame.onload = () => {
-      try {
-        const doc = frame.contentDocument;
-        if (doc && (!doc.body || doc.body.innerText.trim().length < 24)) {
-          if (item) showFallback(item);
-        }
-      } catch (_) {
-        /* cross-origin load — leave preview */
-      }
-    };
+    setLoading(true);
+    frame.onload = () => setLoading(false);
     frame.src = url;
-    window.setTimeout(() => {
-      if (!item || !wrap || wrap.hidden) return;
-      try {
-        const doc = frame.contentDocument;
-        if (!doc || doc.URL === "about:blank" || (doc.body && doc.body.innerText.trim().length < 24)) {
-          showFallback(item);
-        }
-      } catch (_) {
-        /* cross-origin OK */
-      }
-    }, 1600);
+    window.setTimeout(() => setLoading(false), 8000);
   }
 
   function openViewer(item) {
     const root = ensureViewer();
     wireViewerOnce();
+    activeViewerItem = item;
     const title = document.getElementById("feed-reader-title");
     const source = document.getElementById("feed-reader-source");
     const ext = document.getElementById("feed-reader-external");
+    const reload = document.getElementById("feed-reader-reload");
     if (title) title.textContent = item.title || "Article";
     if (source) source.textContent = item.sourceName || item.source || "Live feed";
     if (ext) {
       ext.href = item.url || "#";
       ext.hidden = !item.url;
     }
+    if (reload) reload.hidden = true;
     root.hidden = false;
     document.body.classList.add("feed-reader-open");
-    /* Default: briefing card. Never iframe Google News / hard embeds (avoids “refused to connect”). */
-    showFallback(item);
-    if (canTryEmbed(item.url)) {
-      showFrame(item.url, item);
+    fillFallback(item);
+    /* Auto-open article in mini browser for a browser-like view */
+    if (item.url) {
+      if (canTryEmbed(item.url)) showFrame(item.url, item);
+      else showArticleBrowser(item, { auto: true });
+    } else {
+      showFallback(item);
     }
   }
 
@@ -285,7 +327,19 @@
     viewerWired = true;
     const root = ensureViewer();
     root.addEventListener("click", (e) => {
-      if (e.target.closest("[data-feed-close]")) closeViewer();
+      if (e.target.closest("[data-feed-close]")) {
+        closeViewer();
+        return;
+      }
+      const openBtn = e.target.closest("#feed-reader-fallback-link");
+      if (openBtn) {
+        e.preventDefault();
+        if (activeViewerItem?.url) showArticleBrowser(activeViewerItem);
+        return;
+      }
+      if (e.target.closest("#feed-reader-reload") && activeViewerItem?.url) {
+        showArticleBrowser(activeViewerItem);
+      }
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !root.hidden) closeViewer();
