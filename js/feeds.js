@@ -15,6 +15,8 @@
     { id: "nerc", label: "NERC" },
     { id: "laserc", label: "LASERC" },
     { id: "google-power", label: "Electricity" },
+    { id: "google-policy", label: "FG Policy" },
+    { id: "google-disco-ai", label: "DisCo AI/ML" },
     { id: "google-gis", label: "GIS" },
     { id: "google-geoai", label: "GeoAI" },
     { id: "nairametrics", label: "Power press" },
@@ -31,9 +33,10 @@
     if (sourceId === "laserc" && name.includes("laserc")) return true;
     if (sourceId === "nairametrics" && name.includes("naira")) return true;
     if (sourceId === "google-power" && (topic === "electricity" || name.includes("electricity"))) return true;
+    if (sourceId === "google-policy" && (topic === "policy" || name.includes("policy") || name.includes("fg power"))) return true;
+    if (sourceId === "google-disco-ai" && (topic === "disco-ai" || name.includes("disco ai") || name.includes("ai / ml"))) return true;
     if (sourceId === "google-gis" && (topic === "gis" || name.includes("gis"))) return true;
     if (sourceId === "google-geoai" && (topic === "geoai" || name.includes("geoai"))) return true;
-    // legacy id from older deploys
     if (sourceId === "google-geo" && (topic === "gis" || name.includes("geospatial") || name.includes("gis"))) return true;
     return false;
   }

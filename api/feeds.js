@@ -47,21 +47,35 @@ const SOURCES = [
     name: "Electricity News",
     kind: "rss",
     topic: "electricity",
-    url: "https://news.google.com/rss/search?q=%22Ikeja+Electric%22+OR+IKEDC+OR+NERC+OR+DisCo+OR+%22Lagos+electricity%22+OR+%22electricity+distribution%22+Nigeria+OR+TCN+OR+%22power+grid%22+Lagos&hl=en-NG&gl=NG&ceid=NG:en",
+    url: "https://news.google.com/rss/search?q=%22Ikeja+Electric%22+OR+IKEDC+OR+EKEDC+OR+DisCo+OR+DisCos+OR+%22electricity+distribution%22+OR+%22power+sector%22+Nigeria+OR+TCN+OR+NBET+OR+%22grid+collapse%22&hl=en-NG&gl=NG&ceid=NG:en",
+  },
+  {
+    id: "google-policy",
+    name: "FG Power Policy",
+    kind: "rss",
+    topic: "policy",
+    url: "https://news.google.com/rss/search?q=(NERC+OR+%22Federal+Government%22+OR+FG+OR+BPE+OR+NBET+OR+%22Ministry+of+Power%22+OR+%22electricity+act%22+OR+tariff+OR+Band+A)+(%22power+sector%22+OR+electricity+OR+DisCo+OR+DisCos)+Nigeria&hl=en-NG&gl=NG&ceid=NG:en",
+  },
+  {
+    id: "google-disco-ai",
+    name: "DisCo AI / ML",
+    kind: "rss",
+    topic: "disco-ai",
+    url: "https://news.google.com/rss/search?q=(%22artificial+intelligence%22+OR+AI+OR+%22machine+learning%22+OR+%22smart+meter%22+OR+predictive+OR+%22data+analytics%22)+(DisCo+OR+DisCos+OR+%22Ikeja+Electric%22+OR+IKEDC+OR+%22electricity+distribution%22+OR+%22power+distribution%22)+Nigeria&hl=en-NG&gl=NG&ceid=NG:en",
   },
   {
     id: "google-gis",
     name: "GIS News",
     kind: "rss",
     topic: "gis",
-    url: "https://news.google.com/rss/search?q=GIS+OR+geospatial+OR+ArcGIS+OR+QGIS+OR+%22utility+network%22+OR+%22distribution+network+mapping%22+OR+%22spatial+analytics%22+(electricity+OR+utility+OR+power+OR+Nigeria+OR+Lagos)&hl=en-NG&gl=NG&ceid=NG:en",
+    url: "https://news.google.com/rss/search?q=GIS+OR+geospatial+OR+ArcGIS+OR+QGIS+OR+%22utility+network%22+OR+%22distribution+network+mapping%22+OR+%22spatial+analytics%22+(electricity+OR+utility+OR+power+OR+DisCo+OR+Nigeria+OR+Lagos)&hl=en-NG&gl=NG&ceid=NG:en",
   },
   {
     id: "google-geoai",
     name: "GeoAI News",
     kind: "rss",
     topic: "geoai",
-    url: "https://news.google.com/rss/search?q=GeoAI+OR+%22geospatial+AI%22+OR+%22AI+for+GIS%22+OR+%22machine+learning%22+geospatial+OR+%22remote+sensing%22+AI+OR+%22computer+vision%22+satellite+(utility+OR+grid+OR+infrastructure+OR+mapping)&hl=en-NG&gl=NG&ceid=NG:en",
+    url: "https://news.google.com/rss/search?q=GeoAI+OR+%22geospatial+AI%22+OR+%22AI+for+GIS%22+OR+%22machine+learning%22+geospatial+OR+%22remote+sensing%22+AI+(utility+OR+grid+OR+DisCo+OR+electricity+OR+infrastructure+OR+mapping)&hl=en-NG&gl=NG&ceid=NG:en",
   },
   {
     id: "laserc",
@@ -80,12 +94,24 @@ const SOURCES = [
   },
 ];
 
-/** Keep feeds on electricity / GIS / GeoAI — drop unrelated general news. */
+/** Keep feeds on electricity / policy / DisCo AI / GIS / GeoAI — drop unrelated news. */
 const TOPIC_KEYWORDS = {
   electricity: [
-    "electric", "electricity", "power", "grid", "disco", "ikedc", "ikeja", "nerc", "laserc",
-    "feeder", "transformer", "transmission", "tcn", "distribution", "outage", "tariff",
-    "megawatt", "kwh", "utility", "energy", "genco", "substation", "load",
+    "electric", "electricity", "power", "grid", "disco", "discos", "ikedc", "ekedc", "ikeja",
+    "nerc", "laserc", "feeder", "transformer", "transmission", "tcn", "distribution", "outage",
+    "tariff", "megawatt", "kwh", "utility", "energy", "genco", "substation", "load", "nbet",
+    "band a", "band b", "prepaid", "smart meter",
+  ],
+  policy: [
+    "nerc", "federal government", " fg ", "ministry of power", "bpe", "nbet", "electricity act",
+    "policy", "regulation", "tariff", "licence", "license", "disco", "discos", "power sector",
+    "privatization", "privatisation", "subsidy", "reform", "presidential", "national assembly",
+    "electricity", "power",
+  ],
+  "disco-ai": [
+    "artificial intelligence", " machine learning", " ml ", " ai ", "smart meter", "predictive",
+    "analytics", "data-driven", "automation", "digital twin", "scada", "ami", "disco", "discos",
+    "ikedc", "ikeja electric", "electricity distribution", "outage prediction", "load forecast",
   ],
   gis: [
     "gis", "geospatial", "arcgis", "qgis", "mapping", "spatial", "cartograph", "geodata",
@@ -95,7 +121,7 @@ const TOPIC_KEYWORDS = {
   geoai: [
     "geoai", "geospatial ai", "ai for gis", "machine learning", "deep learning",
     "computer vision", "earth observation", "remote sensing", "satellite ai",
-    "neural", "foundation model", "geospatial analytics",
+    "neural", "foundation model", "geospatial analytics", "artificial intelligence",
   ],
 };
 
@@ -117,10 +143,18 @@ function isOnTopic(it, topic) {
   }
   const keys = TOPIC_KEYWORDS[topic] || [
     ...TOPIC_KEYWORDS.electricity,
+    ...TOPIC_KEYWORDS.policy,
+    ...TOPIC_KEYWORDS["disco-ai"],
     ...TOPIC_KEYWORDS.gis,
     ...TOPIC_KEYWORDS.geoai,
   ];
-  return keys.some((k) => blob.includes(k));
+  // For AI/ML DisCo news, require an AI/ML signal AND a power/DisCo signal
+  if (topic === "disco-ai") {
+    const aiHit = ["artificial intelligence", "machine learning", " ai ", " ml ", "smart meter", "predictive", "analytics", "digital twin"].some((k) => blob.includes(k.trim()) || blob.includes(k));
+    const powerHit = ["disco", "ikedc", "ikeja", "electric", "power", "distribution", "grid", "nerc", "tariff"].some((k) => blob.includes(k));
+    return aiHit && powerHit;
+  }
+  return keys.some((k) => blob.includes(k.trim()));
 }
 
 function stripHtml(html) {
@@ -369,7 +403,7 @@ async function buildFeeds() {
 
   return {
     generatedAt: new Date().toISOString(),
-    focus: ["electricity", "gis", "geoai"],
+    focus: ["electricity", "policy", "disco-ai", "gis", "geoai"],
     cacheTtlSec: Math.round(CACHE_TTL_MS / 1000),
     sources: settled.map(({ id, name, ok, error, via }) => ({ id, name, ok, error, via: via || null })),
     items,
