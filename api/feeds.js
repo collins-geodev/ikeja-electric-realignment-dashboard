@@ -12,6 +12,11 @@ const SOURCES = [
     name: "Ikeja Electric",
     kind: "rss",
     url: "https://www.ikejaelectric.com/feed/",
+    urls: [
+      "https://www.ikejaelectric.com/feed/",
+      "https://ikejaelectric.com/feed/",
+      "https://www.ikejaelectric.com/category/news/feed/",
+    ],
   },
   {
     id: "nerc",
@@ -103,6 +108,7 @@ function parseRss(xml, source, limit = 8) {
       id: `${source.id}-${items.length}-${title.slice(0, 40)}`,
       sourceId: source.id,
       source: source.name,
+      sourceName: source.name,
       title,
       url: link || source.url,
       publishedAt: date ? new Date(date).toISOString() : null,
@@ -131,6 +137,7 @@ function normalizeLasercPayload(data, source) {
       id: `laserc-${row.id || i}-${String(title).slice(0, 32)}`,
       sourceId: source.id,
       source: source.name,
+      sourceName: source.name,
       title: stripHtml(title),
       url,
       publishedAt: date ? new Date(date).toISOString() : null,
@@ -139,15 +146,17 @@ function normalizeLasercPayload(data, source) {
   });
 }
 
-async function fetchText(url, timeoutMs = 9000) {
+async function fetchText(url, timeoutMs = 12000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
       headers: {
-        "User-Agent": "IKEDC-Dashboard-Feeds/1.0",
+        "User-Agent":
+          "Mozilla/5.0 (compatible; IKEDC-Dashboard-Feeds/1.1; +https://ikedc-2026-realignment-dashboard.vercel.app)",
         Accept: "application/rss+xml, application/xml, text/xml, application/json, */*",
+        "Accept-Language": "en-NG,en;q=0.9",
       },
       redirect: "follow",
     });
@@ -160,25 +169,63 @@ async function fetchText(url, timeoutMs = 9000) {
 
 async function loadSource(source) {
   if (source.kind === "rss") {
-    try {
-      const { text } = await fetchText(source.url);
-      const items = parseRss(text, source);
-      return {
-        id: source.id,
-        name: source.name,
-        ok: items.length > 0,
-        error: items.length ? null : "No items parsed",
-        items,
-      };
-    } catch (err) {
-      return {
-        id: source.id,
-        name: source.name,
-        ok: false,
-        error: String(err.message || err),
-        items: [],
-      };
+    const urls = source.urls?.length ? source.urls : [source.url];
+    const errors = [];
+    for (const url of urls) {
+      try {
+        const { text } = await fetchText(url);
+        const items = parseRss(text, source).map((it) => ({
+          ...it,
+          sourceName: source.name,
+        }));
+        if (items.length) {
+          return {
+            id: source.id,
+            name: source.name,
+            ok: true,
+            error: null,
+            items,
+            via: url,
+          };
+        }
+        errors.push(`${url}: no items`);
+      } catch (err) {
+        errors.push(`${url}: ${err.message || err}`);
+      }
     }
+    // Soft fallback: Google News query scoped to Ikeja Electric
+    if (source.id === "ikeja") {
+      try {
+        const gUrl =
+          "https://news.google.com/rss/search?q=%22Ikeja+Electric%22+OR+IKEDC&hl=en-NG&gl=NG&ceid=NG:en";
+        const { text } = await fetchText(gUrl);
+        const items = parseRss(text, { ...source, name: "Ikeja Electric · News" }, 6).map((it) => ({
+          ...it,
+          source: "Ikeja Electric · News",
+          sourceName: "Ikeja Electric · News",
+          sourceId: "ikeja",
+        }));
+        if (items.length) {
+          return {
+            id: source.id,
+            name: source.name,
+            ok: true,
+            error: `Direct RSS blocked; news fallback (${errors[0] || "fetch failed"})`,
+            items,
+            via: "google-news-fallback",
+          };
+        }
+      } catch (err) {
+        errors.push(`news-fallback: ${err.message || err}`);
+      }
+    }
+    return {
+      id: source.id,
+      name: source.name,
+      ok: false,
+      error: errors.slice(0, 3).join(" | ") || "Unavailable",
+      items: [],
+    };
   }
 
   // LASERC JSON API — try known routes, then HTML media page scrape fallback
