@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IKEDC 2026 Realignment Command Dashboard</title>
+  <meta name="description" content="Ikeja Electric 2026 network realignment — Business Units, Undertakings, DTs and feeders." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <p class="eyebrow">Ikeja Electric · GIS</p>
+          <h1>2026 Realignment Command</h1>
+        </div>
+      </div>
+      <nav class="tabs" role="tablist" aria-label="Dashboard views">
+        <button class="tab active" data-tab="overview" role="tab" aria-selected="true">At a glance</button>
+        <button class="tab" data-tab="assets" role="tab" aria-selected="false">DT register</button>
+        <button class="tab" data-tab="feeders" role="tab" aria-selected="false">Feeders</button>
+      </nav>
+      <div class="filters">
+        <label>
+          <span>Business Unit</span>
+          <select id="filter-bu">
+            <option value="ALL">All BUs</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <section class="kpi-strip" id="kpi-strip" aria-label="Key performance indicators"></section>
+
+    <main>
+      <section class="panel tab-panel active" id="panel-overview" role="tabpanel">
+        <div class="grid overview-grid">
+          <div class="card map-card">
+            <div class="card-head">
+              <h2>Network geography</h2>
+              <p>2026 BU boundaries · UT outlines · sampled DTs · ISS / TCN</p>
+            </div>
+            <div id="map" class="map"></div>
+            <div class="map-legend" id="map-legend"></div>
+          </div>
+          <div class="stack">
+            <div class="card">
+              <div class="card-head">
+                <h2>Workload by Business Unit</h2>
+                <p>Distribution transformers · public vs private</p>
+              </div>
+              <canvas id="chart-bu-dt" height="220"></canvas>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <h2>Before → after</h2>
+                <p>Boundary consolidation for 2026</p>
+              </div>
+              <div class="compare" id="compare-block"></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h2>Register agreement by Undertaking</h2>
+              <p>Share of DTs whose register UT matches the 2026 polygon</p>
+            </div>
+            <canvas id="chart-agreement" height="280"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h2>Undertaking table</h2>
+              <p>Click a row to focus the map</p>
+            </div>
+            <div class="table-wrap">
+              <table id="ut-table">
+                <thead>
+                  <tr>
+                    <th>UT</th>
+                    <th>BU</th>
+                    <th>DTs</th>
+                    <th>Pub / Priv</th>
+                    <th>Agree %</th>
+                    <th>Area km²</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel tab-panel" id="panel-assets" role="tabpanel" hidden>
+        <div class="grid assets-grid">
+          <div class="card">
+            <div class="card-head">
+              <h2>Metering status</h2>
+              <p>Public + private DT register</p>
+            </div>
+            <canvas id="chart-metering" height="240"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h2>Connection status</h2>
+              <p>Operational state of DTs</p>
+            </div>
+            <canvas id="chart-connection" height="240"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h2>Capacity classes (kVA)</h2>
+              <p>Installed transformer capacity distribution</p>
+            </div>
+            <canvas id="chart-capacity" height="240"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h2>Ownership &amp; account mix</h2>
+              <p>Public / private and prepaid / postpaid</p>
+            </div>
+            <div class="split-charts">
+              <canvas id="chart-ownership" height="200"></canvas>
+              <canvas id="chart-acc" height="200"></canvas>
+            </div>
+          </div>
+          <div class="card wide">
+            <div class="card-head">
+              <h2>BU reassignments in the DT register</h2>
+              <p>Old BU → NEW_BU_2026 where the name changed</p>
+            </div>
+            <canvas id="chart-reassign" height="260"></canvas>
+          </div>
+          <div class="card wide">
+            <div class="card-head">
+              <h2>Maintenance &amp; disconnection</h2>
+              <p>Health signals across the sampled register fields</p>
+            </div>
+            <div class="split-charts">
+              <canvas id="chart-maint" height="220"></canvas>
+              <canvas id="chart-disc" height="220"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel tab-panel" id="panel-feeders" role="tabpanel" hidden>
+        <div class="grid feeders-grid">
+          <div class="card">
+            <div class="card-head">
+              <h2>Feeders by Business Unit</h2>
+              <p>Count, corridor length, and mean in-own-BU share</p>
+            </div>
+            <canvas id="chart-feeder-bu" height="260"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h2>Length vs DT load</h2>
+              <p>Each point is a feeder (11 kV + 33 kV)</p>
+            </div>
+            <canvas id="chart-feeder-scatter" height="260"></canvas>
+          </div>
+          <div class="card wide">
+            <div class="card-head">
+              <h2>Boundary fidelity</h2>
+              <p>Share of feeder length inside its tagged 2026 BU / UT</p>
+            </div>
+            <canvas id="chart-fidelity" height="240"></canvas>
+          </div>
+          <div class="card wide">
+            <div class="card-head">
+              <h2>Top feeders by DT count</h2>
+              <p>Filtered by selected Business Unit</p>
+            </div>
+            <div class="table-wrap">
+              <table id="feeder-table">
+                <thead>
+                  <tr>
+                    <th>Feeder</th>
+                    <th>kV</th>
+                    <th>BU</th>
+                    <th>UT</th>
+                    <th>DTs</th>
+                    <th>km</th>
+                    <th>In-own BU</th>
+                    <th>In-own UT</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span id="footer-meta">Loading QGIS export…</span>
+      <span>Static HTML · sourced from QGIS TOC · hosted on Vercel</span>
+    </footer>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
