@@ -157,18 +157,34 @@ function isOnTopic(it, topic) {
   return keys.some((k) => blob.includes(k.trim()));
 }
 
+function decodeEntities(s) {
+  return String(s || "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => {
+      try { return String.fromCodePoint(parseInt(h, 16)); } catch { return " "; }
+    })
+    .replace(/&#(\d+);/g, (_, n) => {
+      try { return String.fromCodePoint(Number(n)); } catch { return " "; }
+    })
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&amp;/gi, "&");
+}
+
 function stripHtml(html) {
-  return String(html || "")
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
+  let s = String(html || "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1");
+  /* Decode first so escaped markup (&lt;a…&gt;) becomes real tags, then strip */
+  for (let i = 0; i < 2; i += 1) {
+    s = decodeEntities(s);
+    s = s.replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ");
+  }
+  /* Drop leftover bare URLs that were the only “summary” from Google News RSS */
+  s = s.replace(/https?:\/\/\S+/g, " ").replace(/\s+/g, " ").trim();
+  return s;
 }
 
 function pickTag(block, tag) {

@@ -62,17 +62,78 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
 
+  function decodeEntities(s) {
+    return String(s || "")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&#x([0-9a-f]+);/gi, (_, h) => {
+        try { return String.fromCodePoint(parseInt(h, 16)); } catch { return " "; }
+      })
+      .replace(/&#(\d+);/g, (_, n) => {
+        try { return String.fromCodePoint(Number(n)); } catch { return " "; }
+      })
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;|&apos;/gi, "'")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&amp;/gi, "&");
+  }
+
+  /** Plain-text briefing from RSS HTML / entity-escaped markup */
+  function plainSummary(raw, title) {
+    let s = String(raw || "");
+    for (let i = 0; i < 2; i += 1) {
+      s = decodeEntities(s);
+      s = s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1")
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<[^>]+>/g, " ");
+    }
+    s = s.replace(/https?:\/\/\S+/g, " ").replace(/\s+/g, " ").trim();
+    if (!s || s.length < 12 || /^</.test(s) || /href\s*=/i.test(s)) {
+      return title
+        ? `${title} — open the full article for the publisher’s briefing. In-dashboard preview is blocked by this source.`
+        : "No clean summary available. Open the full article externally.";
+    }
+    return s.length > 480 ? `${s.slice(0, 477)}…` : s;
+  }
+
+  /** Hosts that reliably refuse iframes (XFO / CSP) — never load these in the mini browser */
+  function isHardEmbed(url) {
+    return /news\.google\.com|googleapis\.com|google\.com\/rss|google\.com\/url|twitter\.com|x\.com|facebook\.com|linkedin\.com|instagram\.com|reddit\.com|apple\.news|msn\.com|yahoo\.com|bloomberg\.com|wsj\.com|nytimes\.com|ft\.com/i.test(
+      String(url || "")
+    );
+  }
+
+  /** Only attempt iframe preview for hosts that usually allow embedding */
+  function canTryEmbed(url) {
+    if (!url || isHardEmbed(url)) return false;
+    try {
+      const host = new URL(url, location.href).hostname.replace(/^www\./, "");
+      return /ikejaelectric\.com|nerc\.gov\.ng|laserc\.com\.ng|nairametrics\.com|wikipedia\.org/i.test(host);
+    } catch {
+      return false;
+    }
+  }
+
   function scheduleTask(fn) {
     if (typeof requestIdleCallback === "function") requestIdleCallback(() => fn(), { timeout: 1200 });
     else setTimeout(fn, 0);
   }
 
+  const VIEWER_VERSION = "2";
+
   function ensureViewer() {
     let root = document.getElementById("feed-reader");
+    if (root && root.dataset.viewerVersion !== VIEWER_VERSION) {
+      root.remove();
+      root = null;
+      viewerWired = false;
+    }
     if (root) return root;
     root = document.createElement("div");
     root.id = "feed-reader";
     root.className = "feed-reader";
+    root.dataset.viewerVersion = VIEWER_VERSION;
     root.hidden = true;
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-modal", "true");
@@ -91,15 +152,17 @@
           </div>
         </header>
         <div class="feed-reader-body">
-          <div class="feed-reader-frame-wrap" id="feed-reader-frame-wrap">
+          <div class="feed-reader-frame-wrap" id="feed-reader-frame-wrap" hidden>
             <iframe id="feed-reader-frame" title="Article preview" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" referrerpolicy="no-referrer"></iframe>
           </div>
-          <article class="feed-reader-fallback" id="feed-reader-fallback" hidden>
-            <p class="feed-reader-fallback-note">This source blocks in-dashboard embedding (X-Frame-Options / CSP). Read the briefing below, or open externally.</p>
+          <article class="feed-reader-fallback" id="feed-reader-fallback">
+            <p class="feed-reader-fallback-note" id="feed-reader-fallback-note">In-dashboard briefing card. Use Open full article for the publisher’s live page.</p>
             <h3 id="feed-reader-fallback-title"></h3>
             <p class="feed-reader-fallback-meta" id="feed-reader-fallback-meta"></p>
             <p class="feed-reader-fallback-summary" id="feed-reader-fallback-summary"></p>
-            <a class="btn btn-primary" id="feed-reader-fallback-link" href="#" target="_blank" rel="noopener noreferrer">Open full article</a>
+            <div class="feed-reader-fallback-actions">
+              <a class="btn btn-primary" id="feed-reader-fallback-link" href="#" target="_blank" rel="noopener noreferrer">Open full article</a>
+            </div>
           </article>
         </div>
       </div>`;
@@ -116,70 +179,84 @@
     if (frame) frame.src = "about:blank";
   }
 
-  function showFallback(item) {
-    const wrap = document.getElementById("feed-reader-frame-wrap");
-    const fallback = document.getElementById("feed-reader-fallback");
-    if (wrap) wrap.hidden = true;
-    if (fallback) fallback.hidden = false;
+  function fillFallback(item) {
     const t = document.getElementById("feed-reader-fallback-title");
     const m = document.getElementById("feed-reader-fallback-meta");
     const s = document.getElementById("feed-reader-fallback-summary");
     const a = document.getElementById("feed-reader-fallback-link");
+    const note = document.getElementById("feed-reader-fallback-note");
     if (t) t.textContent = item.title || "Article";
     if (m) m.textContent = [item.sourceName || item.source, fmtWhen(item.publishedAt)].filter(Boolean).join(" · ");
-    if (s) s.textContent = item.summary || item.snippet || "No summary available for this item.";
+    if (s) s.textContent = plainSummary(item.summary || item.snippet, item.title);
     if (a) {
       a.href = item.url || "#";
       a.hidden = !item.url;
     }
+    if (note) {
+      note.textContent = isHardEmbed(item.url)
+        ? "Google News and many publishers block in-dashboard embedding. Read the briefing below, then open the full article."
+        : "In-dashboard briefing card. Open the full article for the publisher’s live page.";
+    }
   }
 
-  function showFrame(url) {
+  function showFallback(item) {
     const wrap = document.getElementById("feed-reader-frame-wrap");
     const fallback = document.getElementById("feed-reader-fallback");
-    if (wrap) wrap.hidden = false;
-    if (fallback) fallback.hidden = true;
+    if (wrap) {
+      wrap.hidden = true;
+      wrap.setAttribute("aria-hidden", "true");
+    }
+    if (fallback) {
+      fallback.hidden = false;
+      fallback.removeAttribute("aria-hidden");
+    }
+    const frame = document.getElementById("feed-reader-frame");
+    if (frame) {
+      frame.removeAttribute("src");
+      frame.src = "about:blank";
+    }
+    fillFallback(item);
+  }
+
+  function showFrame(url, item) {
+    if (!canTryEmbed(url)) {
+      showFallback(item);
+      return;
+    }
+    const wrap = document.getElementById("feed-reader-frame-wrap");
+    const fallback = document.getElementById("feed-reader-fallback");
+    if (wrap) {
+      wrap.hidden = false;
+      wrap.removeAttribute("aria-hidden");
+    }
+    if (fallback) {
+      fallback.hidden = true;
+      fallback.setAttribute("aria-hidden", "true");
+    }
     const frame = document.getElementById("feed-reader-frame");
     if (!frame) return;
-    let settled = false;
-    const toFallback = () => {
-      if (settled) return;
-      settled = true;
-      /* Parent cannot always detect XFO; timed probe + blank check */
-      try {
-        const href = frame.contentWindow?.location?.href;
-        if (!href || href === "about:blank") return;
-      } catch (_) {
-        /* cross-origin access denied usually means the frame loaded a foreign page — keep iframe */
-        settled = false;
-        return;
-      }
-    };
     frame.onload = () => {
       try {
         const doc = frame.contentDocument;
-        if (doc && (!doc.body || !doc.body.innerHTML.trim())) {
-          /* empty — likely blocked */
+        if (doc && (!doc.body || doc.body.innerText.trim().length < 24)) {
+          if (item) showFallback(item);
         }
       } catch (_) {
-        /* cross-origin: treat as success (page rendered) */
-        settled = true;
+        /* cross-origin load — leave preview */
       }
     };
     frame.src = url;
-    /* Many XFO sites show browser error page inside iframe; after delay offer reader card if still blank-looking */
     window.setTimeout(() => {
-      if (settled) return;
+      if (!item || !wrap || wrap.hidden) return;
       try {
         const doc = frame.contentDocument;
-        if (doc && doc.body && doc.body.innerText.trim().length < 40) {
-          /* likely blocked stub */
+        if (!doc || doc.URL === "about:blank" || (doc.body && doc.body.innerText.trim().length < 24)) {
+          showFallback(item);
         }
       } catch (_) {
-        settled = true;
+        /* cross-origin OK */
       }
-    }, 1800);
-    void toFallback;
+    }, 1600);
   }
 
   function openViewer(item) {
@@ -196,36 +273,11 @@
     }
     root.hidden = false;
     document.body.classList.add("feed-reader-open");
-    if (!item.url) {
-      showFallback(item);
-      return;
+    /* Default: briefing card. Never iframe Google News / hard embeds (avoids “refused to connect”). */
+    showFallback(item);
+    if (canTryEmbed(item.url)) {
+      showFrame(item.url, item);
     }
-    showFrame(item.url);
-    /* Always prepare fallback content; user can switch if embed fails */
-    const ft = document.getElementById("feed-reader-fallback-title");
-    const fm = document.getElementById("feed-reader-fallback-meta");
-    const fs = document.getElementById("feed-reader-fallback-summary");
-    const fl = document.getElementById("feed-reader-fallback-link");
-    if (ft) ft.textContent = item.title || "Article";
-    if (fm) fm.textContent = [item.sourceName || item.source, fmtWhen(item.publishedAt)].filter(Boolean).join(" · ");
-    if (fs) fs.textContent = item.summary || item.snippet || "Summary unavailable. Use Open externally if the preview is blank.";
-    if (fl) fl.href = item.url;
-    /* Heuristic: known-hard embeds → reader card first */
-    const hard = /twitter\.com|x\.com|facebook\.com|linkedin\.com|instagram\.com/i.test(item.url);
-    if (hard || !(item.summary || item.snippet)) {
-      /* still try iframe; show note in fallback */
-    }
-    window.setTimeout(() => {
-      const frame = document.getElementById("feed-reader-frame");
-      const wrap = document.getElementById("feed-reader-frame-wrap");
-      if (!frame || !wrap || wrap.hidden) return;
-      try {
-        const doc = frame.contentDocument;
-        if (doc && doc.URL === "about:blank") showFallback(item);
-      } catch (_) {
-        /* cross-origin loaded OK */
-      }
-    }, 2200);
   }
 
   function wireViewerOnce() {
@@ -333,12 +385,13 @@
         ${items
           .map((it) => {
             const href = it.url || "#";
-            const tip = it.summary ? ` title="${escapeHtml(it.summary)}"` : "";
+            const brief = plainSummary(it.summary || it.snippet, it.title);
+            const tip = brief ? ` title="${escapeHtml(brief)}"` : "";
             const payload = encodeURIComponent(JSON.stringify({
               url: it.url || "",
               title: it.title || "",
               sourceName: it.sourceName || it.source || "",
-              summary: it.summary || it.snippet || "",
+              summary: brief,
               publishedAt: it.publishedAt || "",
               source: it.source || "",
             }));

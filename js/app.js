@@ -230,6 +230,126 @@
     return `${title} Business Unit`;
   };
 
+  const utDisplayName = (name) => {
+    if (!name) return "—";
+    return String(name)
+      .toLowerCase()
+      .replace(/\b([a-z])/g, (m) => m.toUpperCase());
+  };
+
+  const lookupBu = (code) =>
+    state.data?.business_units?.find((b) => b.bu_name === code) || null;
+  const lookupUt = (name) =>
+    state.data?.undertakings?.find((u) => u.ut_name === name) || null;
+
+  const popupOpts = { maxWidth: 360, className: "ikedc-map-popup" };
+
+  function buPopupHtml(polyOrRow) {
+    const code = polyOrRow?.bu_name || "";
+    const row = lookupBu(code) || polyOrRow || {};
+    const area = Number(row.area_km2);
+    const dts = Number(row.dt_total ?? polyOrRow?.dt_total ?? 0);
+    const dens = Number.isFinite(area) && area > 0
+      ? (row.dt_per_km2 ?? +(dts / area).toFixed(1))
+      : null;
+    return `
+      <div class="map-popup">
+        <div class="map-popup-kicker">Business Unit · 2026</div>
+        <strong class="map-popup-title">${buDisplayName(code)}</strong>
+        <dl class="map-popup-dl">
+          <div><dt>Undertakings</dt><dd>${fmt.format(row.ut_count ?? "—")}</dd></div>
+          <div><dt>Distribution transformers</dt><dd>${fmt.format(dts)} total<br>${fmt.format(row.dt_public ?? 0)} public · ${fmt.format(row.dt_private ?? 0)} private</dd></div>
+          <div><dt>Service area</dt><dd>${Number.isFinite(area) ? `${area.toFixed(1)} km²` : "—"}</dd></div>
+          <div><dt>DT density</dt><dd>${dens != null ? `${dens} DT / km²` : "—"}</dd></div>
+        </dl>
+      </div>`;
+  }
+
+  function utPopupHtml(poly) {
+    const name = poly?.ut_name || "";
+    const row = lookupUt(name) || {};
+    const bu = row.bu_name || poly?.bu_name || "";
+    const area = Number(row.area_km2);
+    const dts = Number(row.dt_total ?? poly?.dt_total ?? 0);
+    const dens = Number.isFinite(area) && area > 0
+      ? (row.dt_per_km2 ?? +(dts / area).toFixed(1))
+      : null;
+    const agree = row.agreement_pct ?? poly?.agreement_pct;
+    return `
+      <div class="map-popup">
+        <div class="map-popup-kicker">Undertaking · 2026</div>
+        <strong class="map-popup-title">${utDisplayName(name)}</strong>
+        <div class="map-popup-sub">${buDisplayName(bu)}${row.ut_code ? ` · ${row.ut_code}` : ""}</div>
+        <dl class="map-popup-dl">
+          <div><dt>Distribution transformers</dt><dd>${fmt.format(dts)} total<br>${fmt.format(row.dt_public ?? 0)} public · ${fmt.format(row.dt_private ?? 0)} private</dd></div>
+          <div><dt>Inside UT boundary</dt><dd>${row.dt_inside != null ? fmt.format(row.dt_inside) : "—"}</dd></div>
+          <div><dt>Service area</dt><dd>${Number.isFinite(area) ? `${area.toFixed(1)} km²` : "—"}</dd></div>
+          <div><dt>DT density</dt><dd>${dens != null ? `${dens} DT / km²` : "—"}</dd></div>
+          <div><dt>Boundary agreement</dt><dd>${agree != null ? `${Number(agree).toFixed(1)}%` : "—"}</dd></div>
+          ${row.from_old_uts ? `<div class="map-popup-wide"><dt>Legacy UT mix</dt><dd>${row.from_old_uts}</dd></div>` : ""}
+        </dl>
+      </div>`;
+  }
+
+  function feederPopupHtml(p) {
+    const display = feederDisplayName(p.feeder, p.voltage);
+    const kv = String(p.voltage || "").includes("33") ? "33 kV" : (String(p.voltage || "").includes("11") ? "11 kV" : (p.voltage || "—"));
+    return `
+      <div class="map-popup">
+        <div class="map-popup-kicker">MV Feeder · ${kv}</div>
+        <strong class="map-popup-title">${display}</strong>
+        <dl class="map-popup-dl">
+          <div><dt>Business Unit</dt><dd>${buDisplayName(p.new_bu || p.bu)}</dd></div>
+          <div><dt>Undertaking</dt><dd>${utDisplayName(p.new_ut || p.ut)}</dd></div>
+          <div><dt>Distribution transformers</dt><dd>${fmt.format(p.dt_count || 0)}</dd></div>
+          <div><dt>Corridor length</dt><dd>${Number(p.len_km || 0).toFixed(1)} km</dd></div>
+          ${p.in_own_bu != null ? `<div><dt>In-own BU fidelity</dt><dd>${pct(Number(p.in_own_bu) * (Number(p.in_own_bu) <= 1 ? 100 : 1))}</dd></div>` : ""}
+        </dl>
+      </div>`;
+  }
+
+  function dtPopupHtml(p) {
+    const priv = isPrivateOwn(p.own);
+    return `
+      <div class="map-popup">
+        <div class="map-popup-kicker">Distribution Transformer · ${priv ? "Private" : "Public"}</div>
+        <strong class="map-popup-title">${p.name || "Unnamed DT"}</strong>
+        <dl class="map-popup-dl">
+          <div><dt>Ownership</dt><dd>${priv ? "Private" : "Public"}</dd></div>
+          <div><dt>Feeder</dt><dd>${feederDisplayName(p.feeder)}</dd></div>
+          <div><dt>Business Unit</dt><dd>${buDisplayName(p.bu)}</dd></div>
+          <div><dt>Undertaking</dt><dd>${utDisplayName(p.ut)}</dd></div>
+          ${p.cap != null ? `<div><dt>Capacity</dt><dd>${p.cap} kVA</dd></div>` : ""}
+          ${p.install || p.install_pos ? `<div><dt>Install position</dt><dd>${p.install || p.install_pos}</dd></div>` : ""}
+        </dl>
+      </div>`;
+  }
+
+  function issPopupHtml(p) {
+    return `
+      <div class="map-popup">
+        <div class="map-popup-kicker">Injection Substation (ISS)</div>
+        <strong class="map-popup-title">${p.name || "ISS"}</strong>
+        <dl class="map-popup-dl">
+          ${p.bu ? `<div><dt>Business Unit</dt><dd>${buDisplayName(p.bu)}</dd></div>` : ""}
+          ${p.ut ? `<div><dt>Undertaking</dt><dd>${utDisplayName(p.ut)}</dd></div>` : ""}
+          ${p.voltage ? `<div><dt>Voltage</dt><dd>${p.voltage}</dd></div>` : ""}
+        </dl>
+      </div>`;
+  }
+
+  function tcnPopupHtml(p) {
+    return `
+      <div class="map-popup">
+        <div class="map-popup-kicker">TCN Station</div>
+        <strong class="map-popup-title">${p.name || "TCN"}</strong>
+        <dl class="map-popup-dl">
+          ${p.voltage ? `<div><dt>Voltage</dt><dd>${p.voltage}</dd></div>` : ""}
+          <div><dt>Role</dt><dd>Transmission interface</dd></div>
+        </dl>
+      </div>`;
+  }
+
   let _feederNomIndex = null;
   function feederNomIndex() {
     if (_feederNomIndex) return _feederNomIndex;
@@ -1075,7 +1195,7 @@
         "TCN stations": state.layers.tcn,
         "Uploaded layers": state.layers.uploads,
       },
-      { position: "topright", collapsed: true }
+      { position: "topright", collapsed: false }
     ).addTo(state.map);
 
     state.map.on("zoomend", updateLabelVisibility);
@@ -1128,7 +1248,7 @@
         L.polygon(latlngs, {
           color: b.fill_hex, weight: 2, fillColor: b.fill_hex, fillOpacity: 0.18,
         })
-          .bindPopup(`<strong>${buDisplayName(b.bu_name)}</strong><br>${fmt.format(b.dt_total)} DTs · ${b.area_km2} km²`)
+          .bindPopup(buPopupHtml(b), popupOpts)
           .addTo(state.layers.bu);
       });
     });
@@ -1138,7 +1258,7 @@
         L.polygon(latlngs, {
           color: u.fill_hex, weight: 1, fillOpacity: 0.05, dashArray: "4 4",
         })
-          .bindPopup(`<strong>${u.ut_name}</strong> (${buDisplayName(u.bu_name)})<br>${fmt.format(u.dt_total)} DTs · ${u.area_km2} km²`)
+          .bindPopup(utPopupHtml(u), popupOpts)
           .addTo(state.layers.ut);
       });
     });
@@ -1157,11 +1277,7 @@
         renderer: state.feederRenderer,
         style,
         onEachFeature: (_f, lyr) => {
-          const display = feederDisplayName(p.feeder, p.voltage);
-          lyr.bindPopup(
-            `<strong>${display}</strong><br>${p.voltage} · ${p.new_bu || "—"} / ${p.new_ut || "—"}<br>` +
-            `${fmt.format(p.dt_count || 0)} DTs · ${Number(p.len_km || 0).toFixed(1)} km`
-          );
+          lyr.bindPopup(feederPopupHtml(p), popupOpts);
         },
       }).addTo(is33 ? state.layers.feeders33 : state.layers.feeders11);
     });
@@ -1172,18 +1288,14 @@
     dts.forEach((p) => {
       const priv = isPrivateOwn(p.own);
       const target = priv ? state.layers.dtsPrivate : state.layers.dtsPublic;
-      const popup =
-        `<strong>${p.name || "DT"}</strong><br>` +
-        `${priv ? "Private" : "Public"} · Feeder: ${feederDisplayName(p.feeder)}<br>` +
-        `${p.bu || "—"} / ${p.ut || "—"}` +
-        (p.cap != null ? `<br>${p.cap} kVA` : "");
+      const popup = dtPopupHtml(p);
       if (focused && dts.length <= 800) {
         L.marker([p.lat, p.lon], { icon: dtDivIcon(p.own, !empty(state.dts)) })
-          .bindPopup(popup)
+          .bindPopup(popup, popupOpts)
           .addTo(target);
       } else {
         L.circleMarker([p.lat, p.lon], dtMarkerOptions(p.own, !empty(state.dts), renderer))
-          .bindPopup(popup)
+          .bindPopup(popup, popupOpts)
           .addTo(target);
       }
     });
@@ -1192,7 +1304,7 @@
       L.circleMarker([p.lat, p.lon], {
         radius: 5, color: "#e8a317", weight: 2, fillColor: "#e8a317", fillOpacity: 0.85,
       })
-        .bindPopup(`ISS: <strong>${p.name}</strong>`)
+        .bindPopup(issPopupHtml(p), popupOpts)
         .addTo(state.layers.iss);
     });
 
@@ -1204,7 +1316,7 @@
           iconSize: [10, 10],
         }),
       })
-        .bindPopup(`TCN: <strong>${p.name}</strong>`)
+        .bindPopup(tcnPopupHtml(p), popupOpts)
         .addTo(state.layers.tcn);
     });
 
@@ -1732,6 +1844,16 @@
     applyBuFilterFromLabel,
     feederDisplayName,
     buDisplayName,
+    utDisplayName,
+    popupHtml: {
+      bu: buPopupHtml,
+      ut: utPopupHtml,
+      feeder: feederPopupHtml,
+      dt: dtPopupHtml,
+      iss: issPopupHtml,
+      tcn: tcnPopupHtml,
+    },
+    popupOpts,
     LABEL_ZOOM,
     resize: () => {
       if (state.map) state.map.invalidateSize();
@@ -1781,6 +1903,9 @@
       requestAnimationFrame(() => {
         initMap();
         if (state.activeTab === "feeders") renderFeederCharts();
+        /* Story / Coverage maps may have opened before geo arrived — refill assets */
+        window.IKEDCExperience?.refreshStoryMapAssets?.();
+        window.IKEDCExperience?.refreshCoverageAssets?.();
       });
     }, 800);
   }

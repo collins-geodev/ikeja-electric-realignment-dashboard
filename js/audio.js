@@ -4,7 +4,7 @@
     "assets/audio/ambient-instrumental.mp3",
     "assets/audio/ambient-instrumental.m4a",
   ];
-  const VOLUME = 0.035;
+  const VOLUME = 0.018;
 
   const state = {
     ctx: null,

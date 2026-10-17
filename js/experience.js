@@ -265,7 +265,7 @@
           "Injection substations (ISS)": experience.coverageLayers.iss,
           "TCN stations": experience.coverageLayers.tcn,
         },
-        { position: "topright", collapsed: true }
+        { position: "topright", collapsed: false }
       ).addTo(experience.coverageMap);
     }
   }
@@ -481,6 +481,9 @@
       }).addTo(Lyr.lagos);
     }
 
+    const pop = window.IKEDC?.popupHtml;
+    const popOpts = window.IKEDC?.popupOpts || { maxWidth: 360, className: "ikedc-map-popup" };
+
     data.map.bu_polygons.forEach((b) => {
       const dim = experience.coverageFocusBu && b.bu_name !== experience.coverageFocusBu;
       b.rings.forEach((ring) => {
@@ -491,7 +494,7 @@
           fillColor: b.fill_hex,
           fillOpacity: dim ? 0.06 : 0.28,
         })
-          .bindPopup(`<strong>${buLabel(b.bu_name)}</strong>`)
+          .bindPopup(pop?.bu?.(b) || `<strong>${buLabel(b.bu_name)}</strong>`, popOpts)
           .on("click", () => setCoverageFocus(b.bu_name))
           .addTo(Lyr.bus);
         if (!dim) latlngs.forEach((ll) => bounds.push(ll));
@@ -505,7 +508,7 @@
         L.polygon(latlngs, {
           color: u.fill_hex, weight: 1, fillOpacity: 0.04, dashArray: "4 4",
         })
-          .bindPopup(`<strong>${u.ut_name}</strong> (${buLabel(u.bu_name)})`)
+          .bindPopup(pop?.ut?.(u) || `<strong>${u.ut_name}</strong> (${buLabel(u.bu_name)})`, popOpts)
           .addTo(Lyr.ut);
       });
     });
@@ -528,7 +531,7 @@
           renderer: experience.coverageFeederRenderer,
           style,
           onEachFeature: (_f, lyr) => {
-            lyr.bindPopup(`<strong>${display}</strong><br>${p.voltage || ""} · ${bu || "—"} / ${p.new_ut || "—"}`);
+            lyr.bindPopup(pop?.feeder?.(p) || `<strong>${display}</strong><br>${p.voltage || ""} · ${bu || "—"} / ${p.new_ut || "—"}`, popOpts);
             lyr.on("click", () => {
               experience.coverageFocusFeeder =
                 experience.coverageFocusFeeder === name ? null : name;
@@ -555,7 +558,7 @@
         fillOpacity: 0.88,
         renderer,
       })
-        .bindPopup(`<strong>${p.name || "DT"}</strong><br>${priv ? "Private" : "Public"} · ${p.feeder || "—"} · ${p.bu || ""} / ${p.ut || ""}`)
+        .bindPopup(pop?.dt?.(p) || `<strong>${p.name || "DT"}</strong>`, popOpts)
         .addTo(priv ? Lyr.dtsPrivate : Lyr.dtsPublic);
     });
 
@@ -563,7 +566,7 @@
       L.circleMarker([p.lat, p.lon], {
         radius: 5, color: "#e8a317", weight: 2, fillColor: "#e8a317", fillOpacity: 0.85,
       })
-        .bindPopup(`ISS: <strong>${p.name}</strong>`)
+        .bindPopup(pop?.iss?.(p) || `ISS: <strong>${p.name}</strong>`, popOpts)
         .addTo(Lyr.iss);
     });
 
@@ -575,7 +578,7 @@
           iconSize: [10, 10],
         }),
       })
-        .bindPopup(`TCN: <strong>${p.name}</strong>`)
+        .bindPopup(pop?.tcn?.(p) || `TCN: <strong>${p.name}</strong>`, popOpts)
         .addTo(Lyr.tcn);
     });
 
@@ -840,46 +843,185 @@
     });
   }
 
+  function storyStatus(msg) {
+    let el = document.getElementById("story-filter-status");
+    if (!el) {
+      el = document.createElement("p");
+      el.id = "story-filter-status";
+      el.className = "story-filter-status";
+      const host = document.querySelector("#view-story .story-nav") || document.getElementById("view-story");
+      if (host) host.insertAdjacentElement("afterend", el);
+    }
+    if (!el) return;
+    el.textContent = msg || "";
+    el.hidden = !msg;
+  }
+
+  function applyStoryMapFocus(buName) {
+    experience.storyFocusBu = buName || null;
+    Object.values(experience.storyMaps).forEach((map) => {
+      if (!map) return;
+      const focusBounds = [];
+      map.eachLayer((layer) => {
+        if (!layer.getLatLngs || !layer.setStyle) return;
+        const tip = layer.getTooltip?.()?.getContent?.() || "";
+        const name = String(tip).replace(/<[^>]+>/g, "").trim();
+        const match = buName && (
+          name === buName ||
+          name.toUpperCase().includes(String(buName).toUpperCase()) ||
+          buLabel(buName) === name
+        );
+        if (!buName) {
+          layer.setStyle({ fillOpacity: 0.32, opacity: 1, weight: 2 });
+          return;
+        }
+        layer.setStyle({
+          fillOpacity: match ? 0.55 : 0.08,
+          opacity: match ? 1 : 0.35,
+          weight: match ? 3 : 1,
+        });
+        if (match && layer.getBounds) {
+          try { focusBounds.push(layer.getBounds()); } catch (_) { /* ignore */ }
+        }
+      });
+      if (focusBounds.length) {
+        try {
+          const b = focusBounds.reduce((acc, cur) => acc.extend(cur), focusBounds[0]);
+          map.fitBounds(b, { padding: [28, 28], maxZoom: 12 });
+        } catch (_) { /* ignore */ }
+      }
+      try { map.invalidateSize(); } catch (_) { /* ignore */ }
+    });
+  }
+
   function initStory() {
     const data = window.IKEDC?.getData?.();
     if (!data || !window.Chart) return;
 
-    const stats = $("#story-stats");
-    if (stats) {
-      stats.innerHTML = `
-        <div><strong>${data.kpis.bu_2026}</strong><span>Business Units</span></div>
-        <div><strong>${data.kpis.ut_2026}</strong><span>Undertakings</span></div>
-        <div><strong>${fmt.format(data.kpis.dt_total)}</strong><span>Distribution transformers</span></div>
-        <div><strong>${data.kpis.feeders_total}</strong><span>MV feeders</span></div>`;
-    }
+    if (!experience.storyBooted) {
+      experience.storyBooted = true;
+      const stats = $("#story-stats");
+      if (stats) {
+        stats.innerHTML = `
+          <div><strong>${data.kpis.bu_2026}</strong><span>Business Units</span></div>
+          <div><strong>${data.kpis.ut_2026}</strong><span>Undertakings</span></div>
+          <div><strong>${fmt.format(data.kpis.dt_total)}</strong><span>Distribution transformers</span></div>
+          <div><strong>${data.kpis.feeders_total}</strong><span>MV feeders</span></div>`;
+      }
 
-    const cards = $("#story-bu-cards");
-    if (cards) {
-      cards.innerHTML = data.business_units.map((b) => `
-        <button type="button" class="story-bu-card" style="--bu-color:${b.fill_hex}" data-bu="${b.bu_name}">
-          <h3>${buLabel(b.bu_name)}</h3>
-          <p>${BU_BLURBS[b.bu_name] || `${b.ut_count} UTs · ${fmt.format(b.dt_total)} DTs · ${b.area_km2.toFixed(0)} km²`}</p>
-          <p style="margin-top:0.45rem"><strong>${fmt.format(b.dt_total)}</strong> DTs · <strong>${(b.dt_total / b.area_km2).toFixed(1)}</strong> / km²</p>
-        </button>`).join("");
-      cards.querySelectorAll("[data-bu]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          window.IKEDC?.setFilters?.({ bus: [btn.dataset.bu], uts: [], feeders: [], dts: [] });
-          setCoverageFocus(btn.dataset.bu);
+      const cards = $("#story-bu-cards");
+      if (cards) {
+        cards.innerHTML = data.business_units.map((b) => `
+          <button type="button" class="story-bu-card" style="--bu-color:${b.fill_hex}" data-bu="${b.bu_name}">
+            <h3>${buLabel(b.bu_name)}</h3>
+            <p>${BU_BLURBS[b.bu_name] || `${b.ut_count} UTs · ${fmt.format(b.dt_total)} DTs · ${b.area_km2.toFixed(0)} km²`}</p>
+            <p style="margin-top:0.45rem"><strong>${fmt.format(b.dt_total)}</strong> DTs · <strong>${(b.dt_total / b.area_km2).toFixed(1)}</strong> / km²</p>
+          </button>`).join("");
+        cards.querySelectorAll("[data-bu]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            window.IKEDC?.setFilters?.({ bus: [btn.dataset.bu], uts: [], feeders: [], dts: [] });
+            setCoverageFocus(btn.dataset.bu);
+            applyStoryMapFocus(btn.dataset.bu);
+            storyStatus(`Focused · ${buLabel(btn.dataset.bu)} — charts & maps linked`);
+          });
+        });
+      }
+
+      wireStoryTabs();
+      initStoryCharts(data);
+    } else {
+      requestAnimationFrame(() => {
+        Object.values(experience.storyCharts).forEach((c) => {
+          try { c.resize(); } catch (_) { /* ignore */ }
         });
       });
     }
+    showStoryTab(experience.storyTab || "glance", { animate: !experience.storyBooted });
+  }
 
-    wireStoryTabs();
-    initStoryCharts(data);
-    showStoryTab(experience.storyTab || "glance", { animate: true });
+  function clearLayerGroup(group) {
+    if (!group) return;
+    group.eachLayer((lyr) => {
+      try { group.removeLayer(lyr); } catch (_) { /* ignore */ }
+    });
+  }
+
+  function fillStoryAssetLayers(map, data) {
+    if (!map?._ikedcLayers || !data?.map) return;
+    const layers = map._ikedcLayers;
+    const dtRenderer = map._ikedcDtRenderer || L.canvas({ padding: 0.5 });
+    const feederRenderer = map._ikedcFeederRenderer || L.svg({ padding: 0.35 });
+    map._ikedcDtRenderer = dtRenderer;
+    map._ikedcFeederRenderer = feederRenderer;
+
+    ["feeders11", "feeders33", "dtsPublic", "dtsPrivate", "iss", "tcn"].forEach((k) => clearLayerGroup(layers[k]));
+
+    const feeders = window.IKEDC?.getFeedersGeo?.();
+    (feeders?.features || []).forEach((feat) => {
+      const p = feat.properties || {};
+      const is33 = String(p.voltage || "").includes("33");
+      const name = window.IKEDC?.feederDisplayName?.(p.feeder, p.voltage) || p.feeder || "Feeder";
+      L.geoJSON(feat, {
+        renderer: feederRenderer,
+        style: () => (is33 ? { ...COV_FEEDER_33 } : { ...COV_FEEDER_11 }),
+        onEachFeature: (_f, lyr) => {
+          const pop = window.IKEDC?.popupHtml;
+          const popOpts = window.IKEDC?.popupOpts || { maxWidth: 360 };
+          lyr.bindPopup(pop?.feeder?.(p) || `<strong>${name}</strong><br>${is33 ? "33 kV" : "11 kV"}`, popOpts);
+        },
+      }).addTo(is33 ? layers.feeders33 : layers.feeders11);
+    });
+
+    const popH = window.IKEDC?.popupHtml;
+    const popO = window.IKEDC?.popupOpts || { maxWidth: 360, className: "ikedc-map-popup" };
+
+    (data.map.dt_sample || []).slice(0, 5000).forEach((p) => {
+      if (p.lat == null || p.lon == null) return;
+      const priv = String(p.own || "").toUpperCase().includes("PRIVATE");
+      L.circleMarker([p.lat, p.lon], {
+        radius: priv ? 3 : 2.4,
+        color: priv ? "#fff7f2" : "#e8f4ff",
+        weight: priv ? 1.1 : 0.9,
+        fillColor: priv ? "#e4572e" : "#3d9cf0",
+        fillOpacity: 0.9,
+        renderer: dtRenderer,
+      }).bindPopup(popH?.dt?.(p) || (priv ? "Private DT" : "Public DT"), popO)
+        .addTo(priv ? layers.dtsPrivate : layers.dtsPublic);
+    });
+
+    (data.map.iss || []).forEach((p) => {
+      if (p.lat == null || p.lon == null) return;
+      L.circleMarker([p.lat, p.lon], {
+        radius: 5, color: "#e8a317", weight: 2, fillColor: "#e8a317", fillOpacity: 0.9,
+      }).bindPopup(popH?.iss?.(p) || `ISS: <strong>${p.name}</strong>`, popO).addTo(layers.iss);
+    });
+
+    (data.map.tcn || []).forEach((p) => {
+      if (p.lat == null || p.lon == null) return;
+      L.circleMarker([p.lat, p.lon], {
+        radius: 6, color: "#c8452c", weight: 2, fillColor: "#fff", fillOpacity: 0.95,
+      }).bindPopup(popH?.tcn?.(p) || `TCN: <strong>${p.name}</strong>`, popO).addTo(layers.tcn);
+    });
+
+    map._ikedcAssetsReady = {
+      feeders: !!(feeders?.features?.length),
+      dts: !!(data.map.dt_sample?.length),
+    };
   }
 
   function paintStoryMap(el, data, key) {
-    if (!el || !window.L) return null;
+    if (!el || !window.L || !data?.map) return null;
+
+    /* Reuse map shell; refill assets when feeders GeoJSON arrives later */
     if (experience.storyMaps[key]?._container === el) {
-      setTimeout(() => experience.storyMaps[key].invalidateSize(), 60);
-      return experience.storyMaps[key];
+      const map = experience.storyMaps[key];
+      fillStoryAssetLayers(map, data);
+      setTimeout(() => {
+        try { map.invalidateSize(); } catch (_) { /* ignore */ }
+      }, 60);
+      return map;
     }
+
     if (experience.storyMaps[key]) {
       try { experience.storyMaps[key].remove(); } catch (_) { /* ignore */ }
       experience.storyMaps[key] = null;
@@ -888,6 +1030,7 @@
       try { experience.storyMap.remove(); } catch (_) { /* ignore */ }
       experience.storyMap = null;
     }
+
     const map = L.map(el, { zoomControl: true, attributionControl: false }).setView([6.55, 3.5], 10);
     const base = hybridBasemapGroup();
     base.addTo(map);
@@ -901,72 +1044,40 @@
       iss: L.layerGroup(),
       tcn: L.layerGroup(),
     };
-    const dtRenderer = L.canvas({ padding: 0.5 });
-    const feederRenderer = L.svg({ padding: 0.35 });
-    const bounds = [];
+    map._ikedcLayers = layers;
+    map._ikedcDtRenderer = L.canvas({ padding: 0.5 });
+    map._ikedcFeederRenderer = L.svg({ padding: 0.35 });
 
-    data.map.bu_polygons.forEach((b) => {
-      b.rings.forEach((ring) => {
+    const bounds = [];
+    (data.map.bu_polygons || []).forEach((b) => {
+      (b.rings || []).forEach((ring) => {
         const latlngs = ring.map(([lon, lat]) => [lat, lon]);
         L.polygon(latlngs, {
-          color: b.fill_hex, weight: 2, fillColor: b.fill_hex, fillOpacity: 0.32,
+          color: b.fill_hex, weight: 2, fillColor: b.fill_hex, fillOpacity: 0.28,
         })
-          .bindTooltip(buLabel(b.bu_name))
+          .bindPopup(window.IKEDC?.popupHtml?.bu?.(b) || buLabel(b.bu_name), window.IKEDC?.popupOpts || { maxWidth: 360 })
           .on("click", () => {
             window.IKEDC?.setFilters?.({ bus: [b.bu_name], uts: [], feeders: [], dts: [] });
+            applyStoryMapFocus(b.bu_name);
+            storyStatus(`Focused · ${buLabel(b.bu_name)}`);
           })
           .addTo(layers.bus);
         latlngs.forEach((ll) => bounds.push(ll));
       });
     });
 
-    const feeders = window.IKEDC?.getFeedersGeo?.();
-    (feeders?.features || []).forEach((feat) => {
-      const p = feat.properties || {};
-      const is33 = String(p.voltage || "").includes("33");
-      const name = window.IKEDC?.feederDisplayName?.(p.feeder, p.voltage) || p.feeder;
-      L.geoJSON(feat, {
-        renderer: feederRenderer,
-        style: is33 ? { ...COV_FEEDER_33 } : { ...COV_FEEDER_11 },
-        onEachFeature: (_f, lyr) => lyr.bindPopup(`<strong>${name}</strong>`),
-      }).addTo(is33 ? layers.feeders33 : layers.feeders11);
-    });
+    fillStoryAssetLayers(map, data);
 
-    (data.map.dt_sample || []).slice(0, 4000).forEach((p) => {
-      const priv = String(p.own || "").toUpperCase().includes("PRIVATE");
-      L.circleMarker([p.lat, p.lon], {
-        radius: priv ? 2.8 : 2.3,
-        color: priv ? "#fff7f2" : "#dcefff",
-        weight: priv ? 1 : 0.8,
-        fillColor: priv ? "#e4572e" : "#3d9cf0",
-        fillOpacity: 0.85,
-        renderer: dtRenderer,
-      }).addTo(priv ? layers.dtsPrivate : layers.dtsPublic);
-    });
-
-    (data.map.iss || []).forEach((p) => {
-      L.circleMarker([p.lat, p.lon], {
-        radius: 4, color: "#e8a317", weight: 2, fillColor: "#e8a317", fillOpacity: 0.85,
-      }).bindPopup(`ISS: <strong>${p.name}</strong>`).addTo(layers.iss);
-    });
-
-    (data.map.tcn || []).forEach((p) => {
-      L.circleMarker([p.lat, p.lon], {
-        radius: 5, color: "#c8452c", weight: 2, fillColor: "#fff", fillOpacity: 0.9,
-      }).bindPopup(`TCN: <strong>${p.name}</strong>`).addTo(layers.tcn);
-    });
-
+    /* All asset layers on by default (incl. DTs) — layer control toggles visibility */
     layers.bus.addTo(map);
     layers.feeders11.addTo(map);
     layers.feeders33.addTo(map);
+    layers.dtsPublic.addTo(map);
+    layers.dtsPrivate.addTo(map);
     layers.iss.addTo(map);
     layers.tcn.addTo(map);
-    if (key === "glance" || key === "quality") {
-      layers.dtsPublic.addTo(map);
-      layers.dtsPrivate.addTo(map);
-    }
 
-    L.control.layers(
+    const layerCtrl = L.control.layers(
       { "Hybrid satellite": base },
       {
         "Business Units": layers.bus,
@@ -977,10 +1088,12 @@
         "Injection substations (ISS)": layers.iss,
         "TCN stations": layers.tcn,
       },
-      { position: "topright", collapsed: true }
-    ).addTo(map);
+      { position: "topright", collapsed: false }
+    );
+    layerCtrl.addTo(map);
+    map._ikedcLayerControl = layerCtrl;
 
-    const labels = experience.labels || window.IKEDC?.getLabels?.() || { bu: [], ut: [] };
+    const labels = window.IKEDC?.getLabels?.() || experience.labels || { bu: [], ut: [] };
     const buLab = L.layerGroup();
     const utLab = L.layerGroup();
     (labels.bu || []).forEach((lab) => {
@@ -1007,16 +1120,28 @@
 
   function ensureStoryMaps(data) {
     if (!data) return;
-    if (experience.storyTab === "glance") {
+    const tab = experience.storyTab || "glance";
+    if (tab === "glance") {
       const glance = $("#story-map-glance");
       if (glance) paintStoryMap(glance, data, "glance");
-    } else if (experience.storyTab === "before") {
+    } else if (tab === "before") {
       const before = $("#story-map");
       if (before) paintStoryMap(before, data, "before");
-    } else if (experience.storyTab === "quality") {
+    } else if (tab === "quality") {
       const quality = $("#story-map-quality");
       if (quality) paintStoryMap(quality, data, "quality");
     }
+  }
+
+  /** Called after feeders.geojson / labels load so Story maps pick up assets */
+  function refreshStoryMapAssets() {
+    const data = window.IKEDC?.getData?.();
+    if (!data) return;
+    Object.keys(experience.storyMaps).forEach((key) => {
+      const map = experience.storyMaps[key];
+      if (map) fillStoryAssetLayers(map, data);
+    });
+    ensureStoryMaps(data);
   }
 
   function destroyStoryCharts() {
@@ -1031,9 +1156,37 @@
     const bus = data.business_units;
     const t = chartColors();
 
+    const interactive = (onClick) => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      events: ["mousemove", "mouseout", "click", "touchstart", "touchmove"],
+      onHover: (evt, elems) => {
+        const canvas = evt?.native?.target || evt?.chart?.canvas;
+        if (canvas?.style) canvas.style.cursor = elems?.length ? "pointer" : "default";
+      },
+      onClick,
+    });
+
     const mk = (id, cfg) => {
       const el = document.getElementById(id);
       if (!el) return;
+      el.style.cursor = "pointer";
+      const parent = el.closest(".chart-box");
+      if (parent) {
+        parent.classList.add("chart-interactive");
+        parent.title = parent.title || "Click a segment to filter maps & dashboards";
+      }
+      const userClick = cfg.options?.onClick;
+      cfg.options = {
+        ...interactive(userClick
+          ? (e, elems, chart) => userClick(e, elems, chart)
+          : undefined),
+        ...cfg.options,
+        onHover: interactive().onHover,
+        onClick: userClick || cfg.options?.onClick,
+        events: ["mousemove", "mouseout", "click", "touchstart", "touchmove"],
+      };
       experience.storyCharts[id] = new Chart(el, cfg);
     };
 
@@ -1044,9 +1197,13 @@
       if (same) {
         window.IKEDC?.setFilters?.({ bus: [], uts: [], feeders: [], dts: [] });
         setCoverageFocus(null);
+        applyStoryMapFocus(null);
+        storyStatus("Story filter cleared");
       } else {
         window.IKEDC?.setFilters?.({ bus: [buName], uts: [], feeders: [], dts: [] });
         setCoverageFocus(buName);
+        applyStoryMapFocus(buName);
+        storyStatus(`Filtered · ${buLabel(buName)} — click again to clear`);
       }
     };
 
@@ -1054,11 +1211,15 @@
       const cur = window.IKEDC?.getFilters?.();
       const next = cur?.dtOwn === label ? null : label;
       window.IKEDC?.setFilters?.({ dtOwn: next });
+      storyStatus(next ? `Filtered DTs · ${next}` : "Ownership filter cleared");
     };
 
     const storyFilterUt = (utName) => {
       if (!utName) return;
       window.IKEDC?.applyBuFilterFromLabel?.(utName);
+      const ut = data.undertakings.find((u) => u.ut_name === utName);
+      if (ut) applyStoryMapFocus(ut.bu_name);
+      storyStatus(`Filtered · Undertaking ${utName}`);
     };
 
     const byBuAgree = bus.map((b) => {
@@ -1595,12 +1756,19 @@
     showView(["intelligence", "coverage", "story"].includes(hash) ? hash : "intelligence");
   }
 
+  function refreshCoverageAssets() {
+    const data = window.IKEDC?.getData?.();
+    if (data && experience.coverageMap) redrawCoverageLayers(data);
+  }
+
   window.IKEDCExperience = {
     showView,
     resetCurrent,
     exportPDF,
     getLagos: () => experience.lagos,
     hybridBasemapGroup,
+    refreshStoryMapAssets,
+    refreshCoverageAssets,
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
