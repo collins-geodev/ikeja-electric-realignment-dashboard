@@ -123,6 +123,10 @@ body {
   box-shadow: none;
   flex-shrink: 0;
 }
+[data-theme="light"] .brand-logo {
+  /* Glyphs are lightened for dark UI — add edge contrast on light backgrounds */
+  filter: drop-shadow(0 0 0.6px rgba(20, 32, 48, 0.55)) drop-shadow(0 1px 2px rgba(20, 32, 48, 0.18));
+}
 .toolbar {
   display: flex;
   flex-direction: column;
