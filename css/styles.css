@@ -33,18 +33,21 @@ body {
 
 .topbar {
   display: grid;
-  grid-template-columns: 1.2fr auto 0.8fr;
+  grid-template-columns: minmax(220px, 1.1fr) auto minmax(280px, 1.4fr);
   gap: 1rem;
   align-items: center;
   margin-bottom: 1rem;
 }
 
-.brand { display: flex; gap: 0.85rem; align-items: center; }
-.brand-mark {
-  width: 42px; height: 42px; border-radius: 12px;
-  background:
-    linear-gradient(135deg, #c8452c 0%, #d99a1e 45%, #1f6fb2 100%);
+.brand { display: flex; gap: 0.85rem; align-items: center; min-width: 0; }
+.brand-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #0b0b0f;
   box-shadow: 0 0 0 1px rgba(255,255,255,0.12), var(--shadow);
+  flex-shrink: 0;
 }
 .eyebrow {
   margin: 0;
@@ -56,7 +59,7 @@ body {
 .brand h1 {
   margin: 0.15rem 0 0;
   font-family: var(--font-display);
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: 650;
   letter-spacing: -0.02em;
 }
@@ -87,24 +90,106 @@ body {
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
 }
 
-.filters label {
+.filters {
   display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  font-size: 0.72rem;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
+.combo {
+  position: relative;
+  min-width: 150px;
+  max-width: 210px;
+  flex: 1 1 150px;
+}
+.combo-label {
+  display: block;
+  margin-bottom: 0.28rem;
+  font-size: 0.68rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
-  align-items: flex-end;
 }
-.filters select {
-  min-width: 180px;
+.combo-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   background: var(--bg-card);
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 0.55rem 0.75rem;
-  font: 500 0.92rem var(--font-body);
+  padding: 0.55rem 0.7rem;
+  font: 500 0.88rem var(--font-body);
+  cursor: pointer;
+  text-align: left;
+}
+.combo-trigger:hover,
+.combo.open .combo-trigger {
+  border-color: rgba(232, 163, 23, 0.45);
+}
+.combo-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.combo-chevron { color: var(--muted); font-size: 0.75rem; }
+.combo-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: #1a2433;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 0.5rem;
+}
+.combo-panel[hidden] { display: none !important; }
+.combo-search {
+  width: 100%;
+  background: #111925;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.5rem 0.65rem;
+  font: 400 0.88rem var(--font-body);
+  margin-bottom: 0.4rem;
+}
+.combo-search:focus {
+  outline: none;
+  border-color: rgba(232, 163, 23, 0.55);
+}
+.combo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+}
+.combo-list li button {
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  font: 400 0.86rem var(--font-body);
+  cursor: pointer;
+}
+.combo-list li button:hover,
+.combo-list li button[aria-selected="true"] {
+  background: rgba(232, 163, 23, 0.14);
+}
+.combo-list .empty {
+  padding: 0.6rem 0.55rem;
+  color: var(--muted);
+  font-size: 0.84rem;
 }
 
 .kpi-strip {
@@ -119,6 +204,15 @@ body {
   border-radius: var(--radius);
   padding: 0.85rem 0.95rem;
   box-shadow: var(--shadow);
+  text-align: left;
+}
+.kpi.interactive {
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.kpi.interactive:hover {
+  border-color: rgba(232, 163, 23, 0.4);
+  transform: translateY(-1px);
 }
 .kpi .label {
   font-size: 0.7rem;
@@ -139,21 +233,12 @@ body {
   color: var(--muted);
 }
 
-.grid {
-  display: grid;
-  gap: 0.9rem;
-}
-.overview-grid {
-  grid-template-columns: 1.35fr 1fr;
-}
+.grid { display: grid; gap: 0.9rem; }
+.overview-grid { grid-template-columns: 1.35fr 1fr; }
 .overview-grid .card:nth-child(3),
-.overview-grid .card:nth-child(4) {
-  grid-column: 1 / -1;
-}
+.overview-grid .card:nth-child(4) { grid-column: 1 / -1; }
 .assets-grid,
-.feeders-grid {
-  grid-template-columns: 1fr 1fr;
-}
+.feeders-grid { grid-template-columns: 1fr 1fr; }
 .card.wide { grid-column: 1 / -1; }
 .stack { display: grid; gap: 0.9rem; }
 
@@ -177,6 +262,22 @@ body {
   font-size: 0.85rem;
 }
 
+/* Fixed chart hosts — prevents Chart.js stretch/collapse in hidden tabs */
+.chart-box {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+.chart-box canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+.chart-box.h-220 { height: 220px; }
+.chart-box.h-240 { height: 240px; }
+.chart-box.h-260 { height: 260px; }
+.chart-box.h-280 { height: 280px; }
+
 .map-card { display: flex; flex-direction: column; min-height: 520px; }
 .map {
   flex: 1;
@@ -192,6 +293,32 @@ body {
   margin-top: 0.75rem;
   font-size: 0.8rem;
   color: var(--muted);
+}
+.map-label {
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  pointer-events: none;
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+}
+.map-label-bu {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  background: rgba(12, 17, 24, 0.72);
+  border-left: 3px solid var(--label-accent, #e8a317);
+}
+.map-label-ut {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e8eef6;
+  padding: 0.12rem 0.35rem;
+  border-radius: 4px;
+  background: rgba(12, 17, 24, 0.55);
+  border-bottom: 2px solid var(--label-accent, #93a4b8);
 }
 .legend-swatch {
   display: inline-block;
@@ -288,9 +415,9 @@ tbody tr.active { background: rgba(232, 163, 23, 0.12); }
 
 .tab-panel[hidden] { display: none !important; }
 
-@media (max-width: 1100px) {
+@media (max-width: 1200px) {
   .topbar { grid-template-columns: 1fr; }
-  .filters label { align-items: flex-start; }
+  .filters { justify-content: flex-start; }
   .kpi-strip { grid-template-columns: repeat(3, 1fr); }
   .overview-grid,
   .assets-grid,
@@ -301,4 +428,5 @@ tbody tr.active { background: rgba(232, 163, 23, 0.12); }
 @media (max-width: 640px) {
   .kpi-strip { grid-template-columns: repeat(2, 1fr); }
   .tabs { width: 100%; overflow-x: auto; }
+  .combo { max-width: none; }
 }
