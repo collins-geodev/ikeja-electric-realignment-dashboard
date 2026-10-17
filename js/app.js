@@ -16,9 +16,11 @@
     map: null,
     layers: {
       bu: null, ut: null, dts: null, iss: null, tcn: null,
-      feeders11: null, feeders33: null, buLabels: null, utLabels: null, uploads: null,
+      feeders11: null, feeders33: null, buLabels: null, utLabels: null, uploads: null, lagos: null,
     },
     uploads: [],
+    lagos: null,
+    baseTile: null,
     charts: {},
     activeTab: "overview",
     rendered: { overview: false, assets: false, feeders: false },
@@ -121,6 +123,40 @@
     });
   }
 
+  const valueLabelsPlugin = {
+    id: "valueLabels",
+    afterDatasetsDraw(chart) {
+      const cfg = chart.options.plugins?.valueLabels;
+      if (!cfg?.display) return;
+      const { ctx } = chart;
+      const suffix = cfg.suffix || "";
+      const decimals = cfg.decimals ?? 1;
+      chart.data.datasets.forEach((ds, di) => {
+        if (ds.hidden) return;
+        const meta = chart.getDatasetMeta(di);
+        meta.data.forEach((el, i) => {
+          const raw = ds.data[i];
+          if (raw == null) return;
+          const val = typeof raw === "number"
+            ? (Number.isInteger(raw) ? fmt.format(raw) : raw.toFixed(decimals))
+            : raw;
+          const { x, y } = el.tooltipPosition();
+          ctx.save();
+          ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--text").trim() || "#e8eef6";
+          ctx.font = "600 11px 'IBM Plex Sans', system-ui, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          ctx.fillText(`${val}${suffix}`, x, y - 4);
+          ctx.restore();
+        });
+      });
+    },
+  };
+  if (typeof Chart !== "undefined" && !window.__ikedcValueLabels) {
+    Chart.register(valueLabelsPlugin);
+    window.__ikedcValueLabels = true;
+  }
+
   function barChart(key, canvasId, labels, datasets, opts = {}) {
     destroyChart(key);
     const ctx = document.getElementById(canvasId);
@@ -132,9 +168,11 @@
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
+        layout: { padding: { top: opts.valueLabels ? 18 : 0 } },
         plugins: {
           legend: { display: opts.legend !== false, position: "bottom", labels: { boxWidth: 12 } },
           tooltip: { mode: "index", intersect: false },
+          valueLabels: { display: !!opts.valueLabels, decimals: opts.labelDecimals ?? 1, suffix: opts.labelSuffix || "" },
         },
         scales: opts.scales || {
           x: { stacked: !!opts.stacked, grid: { display: false } },
@@ -375,7 +413,7 @@
         backgroundColor: bus.map((b) => b.fill_hex || buColor(b.bu_name)),
         borderRadius: 6,
       },
-    ], { legend: false });
+    ], { legend: false, valueLabels: true, labelDecimals: 1 });
 
     const uts = filteredUTs().slice().sort((a, b) => b.area_km2 - a.area_km2).slice(0, 18);
     barChart("utArea", "chart-ut-area", uts.map((u) => u.ut_name), [
@@ -387,6 +425,8 @@
       },
     ], {
       legend: false,
+      valueLabels: true,
+      labelDecimals: 1,
       scales: {
         x: { ticks: { maxRotation: 50, minRotation: 30, font: { size: 9 } }, grid: { display: false } },
         y: { beginAtZero: true, ticks: { callback: (v) => fmt.format(v) } },
@@ -400,7 +440,7 @@
     }));
     barChart("dens", "chart-density", dens.map((d) => d.name), [
       { label: "DTs / km²", data: dens.map((d) => d.value), backgroundColor: dens.map((d) => d.fill || buColor(d.name)), borderRadius: 6 },
-    ], { legend: false });
+    ], { legend: false, valueLabels: true, labelDecimals: 1 });
 
     const own = countsFor("ownership").slice(0, 6);
     doughnut("own", "chart-ownership", own.map((d) => d.name), own.map((d) => d.count), ["#1f6fb2", "#c8452c", "#6b7c90"]);
@@ -566,13 +606,22 @@
     }
   }
 
+  function setMapTheme(theme) {
+    if (!state.map) return;
+    if (state.baseTile) state.map.removeLayer(state.baseTile);
+    const url = theme === "light"
+      ? "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+      : "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}";
+    state.baseTile = L.tileLayer(url, { attribution: "Tiles © Esri", maxZoom: 16 });
+    state.baseTile.addTo(state.map);
+    state.baseTile.bringToBack();
+  }
+
   function initMap() {
     if (state.map) return;
     state.map = L.map("map", { zoomControl: true }).setView([6.6, 3.45], 11);
-    L.tileLayer(
-      "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
-      { attribution: "Tiles © Esri", maxZoom: 16 }
-    ).addTo(state.map);
+    const theme = document.documentElement.getAttribute("data-theme") || "dark";
+    setMapTheme(theme);
     state.map.on("zoomend", updateLabelVisibility);
     redrawMapLayers({ zoom: true });
   }
@@ -580,6 +629,13 @@
   function redrawMapLayers(opts = {}) {
     if (!state.map) return;
     clearMapLayers();
+
+    if (state.lagos?.features?.length) {
+      state.layers.lagos = L.geoJSON(state.lagos, {
+        style: { color: "#e8a317", weight: 2.2, fillOpacity: 0.02, dashArray: "7 5" },
+        onEachFeature: (f, lyr) => lyr.bindPopup(`<strong>${f.properties?.name || "Lagos State"}</strong>`),
+      }).addTo(state.map);
+    }
 
     const buPolys = state.data.map.bu_polygons.filter((b) => inSet(state.bus, b.bu_name));
     const utPolys = state.data.map.ut_polygons.filter((u) => {
@@ -715,6 +771,7 @@
     updateLabelVisibility();
 
     document.getElementById("map-legend").innerHTML = `
+      <span><i class="legend-swatch" style="background:transparent;outline:1px dashed #e8a317"></i>Lagos State</span>
       ${buPolys.map((b) => `<span><i class="legend-swatch" style="background:${b.fill_hex}"></i>${b.bu_name}</span>`).join("")}
       <span><i class="legend-swatch" style="background:#4db6ff"></i>11 kV feeders</span>
       <span><i class="legend-swatch" style="background:#f0a020"></i>33 kV feeders</span>
@@ -1134,31 +1191,57 @@
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
+  function resetFilters() {
+    state.bus = [];
+    state.uts = [];
+    state.feeders = [];
+    state.dts = [];
+    refreshAll({ zoom: true });
+  }
+
+  window.IKEDC = {
+    getData: () => state.data,
+    getFeedersGeo: () => state.feedersGeo,
+    setLagos: (fc) => { state.lagos = fc; if (state.map) redrawMapLayers(); },
+    setMapTheme,
+    resetFilters,
+    resize: () => {
+      if (state.map) state.map.invalidateSize();
+      resizeVisibleCharts();
+    },
+  };
+
   async function boot() {
     chartDefaults();
     wireTabs();
     wireCombos();
     wireUploadExport();
 
-    const [dashRes, feedRes, labelRes] = await Promise.all([
+    const [dashRes, feedRes, labelRes, lagosRes] = await Promise.all([
       fetch("data/dashboard.json"),
       fetch("data/feeders.geojson"),
       fetch("data/map_labels.json"),
+      fetch("data/lagos_boundary.geojson"),
     ]);
     if (!dashRes.ok) throw new Error("Failed to load dashboard.json");
     state.data = await dashRes.json();
     state.feedersGeo = feedRes.ok ? await feedRes.json() : { type: "FeatureCollection", features: [] };
     state.labels = labelRes.ok ? await labelRes.json() : { bu: [], ut: [] };
+    state.lagos = lagosRes.ok ? await lagosRes.json() : null;
 
-    document.getElementById("footer-meta").textContent =
-      `${state.data.meta.title} · exported ${state.data.meta.generated} · ${state.data.meta.source}`;
+    const meta = document.getElementById("footer-meta");
+    if (meta) {
+      meta.textContent =
+        `${state.data.meta.title} · exported ${state.data.meta.generated} · ${state.data.meta.source}`;
+    }
 
     refreshAll({ zoom: true });
     initMap();
   }
 
   boot().catch((err) => {
-    document.getElementById("footer-meta").textContent = `Error: ${err.message}`;
+    const meta = document.getElementById("footer-meta");
+    if (meta) meta.textContent = `Error: ${err.message}`;
     console.error(err);
   });
 })();

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -14,7 +14,25 @@
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-  <div class="app">
+  <canvas id="starfield" aria-hidden="true"></canvas>
+
+  <div class="chrome">
+    <div class="chrome-left">
+      <button type="button" class="btn btn-ghost active-view" data-goto="intelligence">Intelligence</button>
+      <button type="button" class="btn btn-accent" data-goto="coverage">Coverage dashboard</button>
+      <button type="button" class="btn btn-ghost" data-goto="story">Story map</button>
+    </div>
+    <div class="chrome-right">
+      <button type="button" class="btn btn-ghost" id="btn-reset">Reset</button>
+      <button type="button" class="btn btn-ghost" id="btn-theme">Light mode</button>
+      <button type="button" class="btn btn-ghost" id="btn-audio">Play ambience</button>
+      <button type="button" class="btn btn-secondary" id="btn-export-pdf">Export PDF</button>
+      <button type="button" class="btn btn-primary" id="btn-export-dual-xlsx">Excel (both)</button>
+    </div>
+  </div>
+
+  <!-- ========== INTELLIGENCE DASHBOARD ========== -->
+  <div class="app app-view" id="view-intelligence" data-view="intelligence">
     <header class="topbar">
       <div class="brand">
         <img class="brand-logo" src="assets/ikeja-electric-logo.png" alt="Ikeja Electric" width="140" height="48" />
@@ -129,7 +147,7 @@
           <div class="card map-card">
             <div class="card-head">
               <h2>Network geography</h2>
-              <p>2026 BU boundaries · UT outlines · feeders · DTs · ISS / TCN</p>
+              <p>Lagos boundary · 2026 BUs · UTs · feeders · DTs · ISS / TCN</p>
             </div>
             <div id="map" class="map"></div>
             <div class="map-legend" id="map-legend"></div>
@@ -166,12 +184,7 @@
               <table id="ut-table">
                 <thead>
                   <tr>
-                    <th>UT</th>
-                    <th>BU</th>
-                    <th>DTs</th>
-                    <th>Pub / Priv</th>
-                    <th>Agree %</th>
-                    <th>Area km²</th>
+                    <th>UT</th><th>BU</th><th>DTs</th><th>Pub / Priv</th><th>Agree %</th><th>Area km²</th>
                   </tr>
                 </thead>
                 <tbody></tbody>
@@ -263,14 +276,7 @@
               <table id="feeder-table">
                 <thead>
                   <tr>
-                    <th>Feeder</th>
-                    <th>kV</th>
-                    <th>BU</th>
-                    <th>UT</th>
-                    <th>DTs</th>
-                    <th>km</th>
-                    <th>In-own BU</th>
-                    <th>In-own UT</th>
+                    <th>Feeder</th><th>kV</th><th>BU</th><th>UT</th><th>DTs</th><th>km</th><th>In-own BU</th><th>In-own UT</th>
                   </tr>
                 </thead>
                 <tbody></tbody>
@@ -283,8 +289,155 @@
 
     <footer class="footer">
       <span id="footer-meta">Loading QGIS export…</span>
-      <span>Static HTML · sourced from QGIS TOC · hosted on Vercel</span>
+      <span>Intelligence view · QGIS TOC · Vercel</span>
     </footer>
+  </div>
+
+  <!-- ========== COVERAGE REPLICA (same tab) ========== -->
+  <div class="app app-view coverage-app" id="view-coverage" data-view="coverage" hidden>
+    <header class="cov-header">
+      <div class="brand">
+        <img class="brand-logo" src="assets/ikeja-electric-logo.png" alt="Ikeja Electric" width="140" height="48" />
+        <div>
+          <p class="eyebrow">
+            <span class="eyebrow-static">Ikeja Electric ·</span>
+            <span class="eyebrow-marquee" aria-label="Powered by the GIS Team">
+              <span class="eyebrow-track">
+                <span class="eyebrow-glow">Powered by the GIS Team</span>
+                <span class="eyebrow-glow" aria-hidden="true">Powered by the GIS Team</span>
+              </span>
+            </span>
+          </p>
+          <h1>Network Realignment &amp; Coverage Dashboard</h1>
+          <p class="cov-sub">Enterprise spatial dashboard · same-tab replica</p>
+        </div>
+      </div>
+    </header>
+
+    <div class="coverage-layout">
+      <aside class="cov-kpis">
+        <article class="cov-kpi">
+          <div class="label">Total coverage area</div>
+          <div class="value accent-orange" id="cov-kpi-area">—</div>
+          <div class="hint">2026 Business Unit footprint</div>
+        </article>
+        <article class="cov-kpi">
+          <div class="label" id="cov-kpi-alt-label">DT density</div>
+          <div class="value accent-yellow" id="cov-kpi-alt">—</div>
+          <div class="hint" id="cov-kpi-alt-hint">transformers per km²</div>
+        </article>
+        <article class="cov-kpi">
+          <div class="label">Active feeders</div>
+          <div class="value accent-cyan" id="cov-kpi-feeders">—</div>
+          <div class="hint">11 kV + 33 kV tagged network</div>
+        </article>
+        <article class="cov-kpi">
+          <div class="label">Transformers in network</div>
+          <div class="value accent-blue" id="cov-kpi-dts">—</div>
+          <div class="hint">Public + private DT register</div>
+        </article>
+        <article class="cov-kpi">
+          <div class="label">Mean register agreement</div>
+          <div class="value accent-green" id="cov-kpi-agree">—</div>
+          <div class="hint">DT register vs 2026 UT polygons</div>
+        </article>
+      </aside>
+
+      <section class="cov-center">
+        <div class="card map-card cov-map-card">
+          <div class="card-head">
+            <h2>Realignment zones</h2>
+            <p>Lagos State boundary · BU fills · feeder corridors</p>
+          </div>
+          <div id="coverage-map" class="map"></div>
+        </div>
+      </section>
+
+      <aside class="cov-right">
+        <div class="card">
+          <div class="card-head">
+            <h2>Feeder load by BU</h2>
+            <p>DT share across Business Units</p>
+          </div>
+          <div class="chart-box h-220"><canvas id="chart-cov-band"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h2>Register agreement by BU</h2>
+            <p>Mean UT agreement inside each Business Unit</p>
+          </div>
+          <div class="chart-box h-220"><canvas id="chart-cov-phase"></canvas></div>
+        </div>
+        <div class="card cov-feed-card">
+          <div class="card-head"><h2>Feed</h2><p>Live spatial insights</p></div>
+          <ul class="cov-feed" id="cov-feed"></ul>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- ========== STORY MAP ========== -->
+  <div class="app app-view story-app" id="view-story" data-view="story" hidden>
+    <header class="story-hero">
+      <img class="brand-logo" src="assets/ikeja-electric-logo.png" alt="Ikeja Electric" />
+      <p class="eyebrow-glow story-credit">Powered by the GIS Team</p>
+      <h1 class="story-title">Five Business Units. One Intelligent Network.</h1>
+      <p class="story-lead">
+        Ikeja Electric’s 2026 realignment consolidates the franchise into 5 Business Units and 38 Undertakings —
+        with every distribution transformer, feeder, and boundary visible in one command view.
+      </p>
+      <button type="button" class="btn btn-primary" data-goto="intelligence">Open intelligence dashboard</button>
+    </header>
+
+    <section class="story-section">
+      <h2>Why the realignment matters</h2>
+      <p>
+        Clearer territories improve field response, asset accountability, and customer service routing.
+        The GIS Team built this dashboard so leadership and operations can see the before→after story on one map.
+      </p>
+      <div class="story-stats">
+        <div><strong>5</strong><span>Business Units</span></div>
+        <div><strong>38</strong><span>Undertakings</span></div>
+        <div><strong>20,789</strong><span>Distribution transformers</span></div>
+        <div><strong>418</strong><span>MV feeders</span></div>
+      </div>
+    </section>
+
+    <section class="story-section">
+      <h2>Workload across the new BUs</h2>
+      <p>Public and private DT counts for each 2026 Business Unit.</p>
+      <div class="chart-box h-280 story-chart"><canvas id="story-chart-bu"></canvas></div>
+      <div class="table-wrap story-table">
+        <table id="story-bu-table">
+          <thead>
+            <tr><th>BU</th><th>UTs</th><th>DTs</th><th>Area km²</th><th>DTs / km²</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="story-section story-media">
+      <h2>From register to geography</h2>
+      <p>
+        Every DT carries the new nomenclature and feeder name from the operational register.
+        Filters on the intelligence dashboard fly the map to the selected BU, UT, feeder, or transformer.
+      </p>
+      <div class="story-cards">
+        <article><h3>Spatial truth</h3><p>BU and UT polygons with Lagos State context.</p></article>
+        <article><h3>Network truth</h3><p>11 kV and 33 kV corridors with boundary fidelity.</p></article>
+        <article><h3>Asset truth</h3><p>Capacity, ownership, and reassignment analytics.</p></article>
+      </div>
+    </section>
+
+    <section class="story-section story-cta">
+      <h2>Explore further</h2>
+      <div class="story-cta-row">
+        <button type="button" class="btn btn-accent" data-goto="coverage">Coverage dashboard</button>
+        <button type="button" class="btn btn-primary" data-goto="intelligence">Intelligence dashboard</button>
+        <button type="button" class="btn btn-secondary" id="btn-export-pdf-story">Export PDF report</button>
+      </div>
+    </section>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -293,6 +446,14 @@
   <script src="https://cdn.jsdelivr.net/npm/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/experience.js"></script>
+  <script>
+    document.getElementById("btn-export-pdf-story")?.addEventListener("click", () => {
+      window.IKEDCExperience?.exportPDF?.();
+    });
+  </script>
 </body>
 </html>
