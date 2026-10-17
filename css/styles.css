@@ -268,33 +268,29 @@ body {
   margin: 0;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  flex-wrap: wrap;
+  column-gap: 0.75rem;
+  row-gap: 0.2rem;
   font-size: 0.72rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
   min-width: 0;
+  max-width: min(42rem, 100%);
 }
 .eyebrow-static {
   flex-shrink: 0;
   white-space: nowrap;
+  color: var(--muted);
 }
-.eyebrow-marquee {
-  display: inline-block;
-  overflow: hidden;
-  max-width: min(220px, 42vw);
-  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
-}
-.eyebrow-track {
-  display: inline-flex;
-  gap: 2.5rem;
-  white-space: nowrap;
-  animation: gis-scroll 9s linear infinite;
-  will-change: transform;
+.eyebrow-sep {
+  flex-shrink: 0;
+  opacity: 0.55;
+  letter-spacing: 0;
 }
 .eyebrow-glow {
   display: inline-block;
+  white-space: nowrap;
   color: var(--brand-glow);
   font-weight: 700;
   text-shadow:
@@ -319,23 +315,15 @@ body {
   color: #7c2d12;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
 }
-@keyframes gis-scroll {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
 @keyframes gis-pulse {
   0%, 100% { transform: scale(1); opacity: 0.92; }
-  50% { transform: scale(1.06); opacity: 1; }
+  50% { transform: scale(1.03); opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .eyebrow-track,
   .eyebrow-glow { animation: none; }
-  .eyebrow-marquee { overflow: visible; max-width: none; mask-image: none; -webkit-mask-image: none; }
-  .eyebrow-track { gap: 0; }
-  .eyebrow-glow[aria-hidden="true"] { display: none; }
 }
 .brand h1 {
-  margin: 0.2rem 0 0;
+  margin: 0.35rem 0 0;
   font-family: var(--font-display);
   font-size: clamp(0.95rem, 1.6vw, 1.15rem);
   font-weight: 650;
@@ -803,7 +791,9 @@ button.kpi .value {
 /* Coverage dashboard */
 .coverage-app { max-width: 1800px; }
 .cov-header { margin-bottom: 1rem; }
-.cov-sub { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.9rem; }
+.cov-header .brand { width: 100%; max-width: 52rem; }
+.cov-header .brand > div { min-width: 0; flex: 1 1 auto; }
+.cov-sub { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.9rem; letter-spacing: 0.01em; }
 .coverage-layout {
   display: grid;
   grid-template-columns: minmax(200px, 260px) minmax(0, 1.5fr) minmax(280px, 360px);
@@ -1589,7 +1579,6 @@ button.kpi .value {
   .btn, .btn-primary, .btn-secondary, .combo-trigger {
     min-height: 44px;
   }
-  .eyebrow-marquee { max-width: min(180px, 48vw); }
 }
 
 /* Live energized feeder network — SVG path dash animation (Leaflet className) */
