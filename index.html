@@ -22,6 +22,11 @@
       <button type="button" class="btn btn-accent" data-goto="coverage">Coverage dashboard</button>
       <button type="button" class="btn btn-ghost" data-goto="story">Story map</button>
     </div>
+    <nav class="chrome-tabs tabs" id="chrome-intel-tabs" role="tablist" aria-label="Intelligence sections">
+      <button class="tab active" data-tab="overview" role="tab" aria-selected="true">At a glance</button>
+      <button class="tab" data-tab="assets" role="tab" aria-selected="false">DT register</button>
+      <button class="tab" data-tab="feeders" role="tab" aria-selected="false">Feeders</button>
+    </nav>
     <div class="chrome-right">
       <button type="button" class="btn btn-ghost" id="btn-reset">Reset</button>
       <button type="button" class="btn btn-ghost" id="btn-theme">Light mode</button>
@@ -49,11 +54,6 @@
           <h1>IE Network Monitoring Dashboard</h1>
         </div>
       </div>
-      <nav class="tabs" role="tablist" aria-label="Dashboard views">
-        <button class="tab active" data-tab="overview" role="tab" aria-selected="true">At a glance</button>
-        <button class="tab" data-tab="assets" role="tab" aria-selected="false">DT register</button>
-        <button class="tab" data-tab="feeders" role="tab" aria-selected="false">Feeders</button>
-      </nav>
       <div class="toolbar">
         <div class="filters" id="filter-bar">
           <div class="combo" data-combo="bu">

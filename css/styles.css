@@ -142,7 +142,7 @@ body {
 
 .topbar {
   display: grid;
-  grid-template-columns: minmax(220px, 1.1fr) auto minmax(280px, 1.5fr);
+  grid-template-columns: minmax(220px, 1fr) minmax(280px, 1.6fr);
   gap: 1rem;
   align-items: start;
   margin-bottom: 1rem;
@@ -343,30 +343,54 @@ body {
   line-height: 1.25;
 }
 
+.chrome-tabs {
+  flex: 1 1 auto;
+  display: inline-flex;
+  justify-content: center;
+  align-self: center;
+  margin: 0 auto;
+  max-width: 100%;
+}
+.chrome-tabs[hidden] { display: none !important; }
 .tabs {
   display: inline-flex;
-  background: var(--panel-soft);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.12));
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 0.25rem;
-  gap: 0.2rem;
+  padding: 0.28rem;
+  gap: 0.22rem;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 6px 18px rgba(0,0,0,0.18);
+}
+[data-theme="light"] .tabs {
+  background: linear-gradient(180deg, #ffffff, #eef2f7);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 4px 14px rgba(15,30,50,0.08);
 }
 .tab {
   appearance: none;
   border: 0;
   background: transparent;
   color: var(--muted);
-  font: 500 0.9rem var(--font-body);
-  padding: 0.55rem 1rem;
+  font: 600 0.82rem var(--font-body);
+  letter-spacing: 0.01em;
+  padding: 0.5rem 1.05rem;
   border-radius: 999px;
   cursor: pointer;
-  transition: 0.18s ease;
+  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  white-space: nowrap;
 }
-.tab:hover { color: var(--text); }
-.tab.active {
-  background: var(--tab-active-bg);
+.tab:hover {
   color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--line);
+  background: rgba(232, 163, 23, 0.08);
+}
+.tab.active {
+  background: linear-gradient(135deg, #c8452c, #d99a1e);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(200, 69, 44, 0.35);
+  transform: translateY(-0.5px);
+}
+[data-theme="light"] .tab.active {
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(154, 52, 18, 0.28);
 }
 
 .filters {
@@ -1445,9 +1469,14 @@ button.kpi .value {
     align-items: stretch;
     padding: 0.5rem 0.75rem;
   }
-  .chrome-left, .chrome-right {
+  .chrome-left, .chrome-right, .chrome-tabs {
     width: 100%;
   }
+  .chrome-tabs {
+    justify-content: stretch;
+    order: 2;
+  }
+  .chrome-right { order: 3; }
   .chrome .btn,
   .chrome .btn-ghost,
   .chrome .btn-accent,
@@ -1465,8 +1494,14 @@ button.kpi .value {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     flex-wrap: nowrap;
+    justify-content: space-between;
   }
-  .tab { white-space: nowrap; min-height: 40px; }
+  .tab {
+    white-space: nowrap;
+    min-height: 40px;
+    flex: 1 1 auto;
+    text-align: center;
+  }
   .cov-kpis { grid-template-columns: 1fr 1fr; }
   .story-app { padding-left: 0.75rem; padding-right: 0.75rem; }
   .story-hero { padding: 2rem 0.5rem 1.5rem; }

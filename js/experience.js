@@ -153,6 +153,8 @@
     $$("[data-goto]").forEach((btn) => {
       btn.classList.toggle("active-view", btn.dataset.goto === view);
     });
+    const intelTabs = $("#chrome-intel-tabs");
+    if (intelTabs) intelTabs.hidden = view !== "intelligence";
     if (view === "coverage") {
       requestAnimationFrame(() => {
         initCoverage();
