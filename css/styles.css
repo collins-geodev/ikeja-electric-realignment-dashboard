@@ -104,44 +104,6 @@ body {
   gap: 0.45rem;
   align-items: center;
 }
-.chrome-center {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem 0.75rem;
-  flex: 1 1 auto;
-  min-width: min(100%, 220px);
-}
-.chrome-brand-trio {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-.chrome-brand-trio img {
-  height: 28px;
-  width: auto;
-  object-fit: contain;
-  background: transparent;
-}
-.chrome-color-text {
-  margin: 0;
-  font-family: var(--font-display), Sora, sans-serif;
-  font-weight: 800;
-  font-size: clamp(0.72rem, 1.6vw, 0.92rem);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  background: linear-gradient(105deg, #c8452c 0%, #d99a1e 42%, #1f6fb2 78%, #7a4fb5 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  white-space: nowrap;
-}
-[data-theme="light"] .chrome-color-text {
-  background: linear-gradient(105deg, #9a3412 0%, #b45309 40%, #1d4ed8 75%, #6d28d9 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-}
 .btn.active-view {
   border-color: rgba(232, 163, 23, 0.55);
   color: var(--text);
