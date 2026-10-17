@@ -11,41 +11,63 @@ const SOURCES = [
     id: "ikeja",
     name: "Ikeja Electric",
     kind: "rss",
+    topic: "electricity",
     url: "https://www.ikejaelectric.com/feed/",
     urls: [
+      "https://www.ikejaelectric.com/category/news/feed/",
       "https://www.ikejaelectric.com/feed/",
       "https://ikejaelectric.com/feed/",
-      "https://www.ikejaelectric.com/category/news/feed/",
     ],
   },
   {
     id: "nerc",
     name: "NERC",
     kind: "rss",
-    url: "https://nerc.gov.ng/feed/",
+    topic: "electricity",
+    url: "https://nerc.gov.ng/media-category/news/feed/",
+    urls: [
+      "https://nerc.gov.ng/media-category/news/feed/",
+      "https://nerc.gov.ng/feed/",
+    ],
   },
   {
     id: "nairametrics",
-    name: "Nairametrics",
+    name: "Nairametrics · Power",
     kind: "rss",
-    url: "https://nairametrics.com/feed/",
+    topic: "electricity",
+    url: "https://nairametrics.com/tag/electricity/feed/",
+    urls: [
+      "https://nairametrics.com/tag/electricity/feed/",
+      "https://nairametrics.com/tag/power/feed/",
+      "https://nairametrics.com/tag/nerc/feed/",
+    ],
   },
   {
     id: "google-power",
-    name: "Google News · Power",
+    name: "Electricity News",
     kind: "rss",
-    url: "https://news.google.com/rss/search?q=Ikeja+Electric+OR+%22Lagos+electricity%22+OR+NERC+OR+DisCo+power&hl=en-NG&gl=NG&ceid=NG:en",
+    topic: "electricity",
+    url: "https://news.google.com/rss/search?q=%22Ikeja+Electric%22+OR+IKEDC+OR+NERC+OR+DisCo+OR+%22Lagos+electricity%22+OR+%22electricity+distribution%22+Nigeria+OR+TCN+OR+%22power+grid%22+Lagos&hl=en-NG&gl=NG&ceid=NG:en",
   },
   {
-    id: "google-geo",
-    name: "Google News · Geospatial",
+    id: "google-gis",
+    name: "GIS News",
     kind: "rss",
-    url: "https://news.google.com/rss/search?q=GIS+utility+OR+%22ArcGIS%22+OR+geospatial+power+Nigeria+OR+%22distribution+network%22+Lagos&hl=en-NG&gl=NG&ceid=NG:en",
+    topic: "gis",
+    url: "https://news.google.com/rss/search?q=GIS+OR+geospatial+OR+ArcGIS+OR+QGIS+OR+%22utility+network%22+OR+%22distribution+network+mapping%22+OR+%22spatial+analytics%22+(electricity+OR+utility+OR+power+OR+Nigeria+OR+Lagos)&hl=en-NG&gl=NG&ceid=NG:en",
+  },
+  {
+    id: "google-geoai",
+    name: "GeoAI News",
+    kind: "rss",
+    topic: "geoai",
+    url: "https://news.google.com/rss/search?q=GeoAI+OR+%22geospatial+AI%22+OR+%22AI+for+GIS%22+OR+%22machine+learning%22+geospatial+OR+%22remote+sensing%22+AI+OR+%22computer+vision%22+satellite+(utility+OR+grid+OR+infrastructure+OR+mapping)&hl=en-NG&gl=NG&ceid=NG:en",
   },
   {
     id: "laserc",
     name: "LASERC",
     kind: "laserc",
+    topic: "electricity",
     urls: [
       "https://larsec-bk-epeak.ondigitalocean.app/api/content/media",
       "https://larsec-bk-epeak.ondigitalocean.app/api/content/media/published",
@@ -57,6 +79,49 @@ const SOURCES = [
     ],
   },
 ];
+
+/** Keep feeds on electricity / GIS / GeoAI — drop unrelated general news. */
+const TOPIC_KEYWORDS = {
+  electricity: [
+    "electric", "electricity", "power", "grid", "disco", "ikedc", "ikeja", "nerc", "laserc",
+    "feeder", "transformer", "transmission", "tcn", "distribution", "outage", "tariff",
+    "megawatt", "kwh", "utility", "energy", "genco", "substation", "load",
+  ],
+  gis: [
+    "gis", "geospatial", "arcgis", "qgis", "mapping", "spatial", "cartograph", "geodata",
+    "remote sensing", "satellite", "lidar", "utility network", "esri", "openstreetmap",
+    "geoserver", "parcel", "cadastr",
+  ],
+  geoai: [
+    "geoai", "geospatial ai", "ai for gis", "machine learning", "deep learning",
+    "computer vision", "earth observation", "remote sensing", "satellite ai",
+    "neural", "foundation model", "geospatial analytics",
+  ],
+};
+
+const BLOCK_KEYWORDS = [
+  "waec", "hotel", "football", "premier league", "celebrity", "naira redesign",
+  "crypto pump", "betting", "nollywood", "transfer window",
+];
+
+function textBlob(it) {
+  return `${it.title || ""} ${it.summary || ""} ${it.sourceName || ""}`.toLowerCase();
+}
+
+function isOnTopic(it, topic) {
+  const blob = textBlob(it);
+  if (BLOCK_KEYWORDS.some((k) => blob.includes(k))) return false;
+  // Official electricity sources stay unless clearly off-topic junk
+  if (topic === "electricity" && ["ikeja", "nerc", "laserc"].includes(it.sourceId)) {
+    return !BLOCK_KEYWORDS.some((k) => blob.includes(k));
+  }
+  const keys = TOPIC_KEYWORDS[topic] || [
+    ...TOPIC_KEYWORDS.electricity,
+    ...TOPIC_KEYWORDS.gis,
+    ...TOPIC_KEYWORDS.geoai,
+  ];
+  return keys.some((k) => blob.includes(k));
+}
 
 function stripHtml(html) {
   return String(html || "")
@@ -174,10 +239,9 @@ async function loadSource(source) {
     for (const url of urls) {
       try {
         const { text } = await fetchText(url);
-        const items = parseRss(text, source).map((it) => ({
-          ...it,
-          sourceName: source.name,
-        }));
+        const items = parseRss(text, source, 12)
+          .map((it) => ({ ...it, sourceName: source.name, topic: source.topic || null }))
+          .filter((it) => isOnTopic(it, source.topic));
         if (items.length) {
           return {
             id: source.id,
@@ -199,12 +263,15 @@ async function loadSource(source) {
         const gUrl =
           "https://news.google.com/rss/search?q=%22Ikeja+Electric%22+OR+IKEDC&hl=en-NG&gl=NG&ceid=NG:en";
         const { text } = await fetchText(gUrl);
-        const items = parseRss(text, { ...source, name: "Ikeja Electric · News" }, 6).map((it) => ({
-          ...it,
-          source: "Ikeja Electric · News",
-          sourceName: "Ikeja Electric · News",
-          sourceId: "ikeja",
-        }));
+        const items = parseRss(text, { ...source, name: "Ikeja Electric · News" }, 8)
+          .map((it) => ({
+            ...it,
+            source: "Ikeja Electric · News",
+            sourceName: "Ikeja Electric · News",
+            sourceId: "ikeja",
+            topic: "electricity",
+          }))
+          .filter((it) => isOnTopic(it, "electricity"));
         if (items.length) {
           return {
             id: source.id,
@@ -235,7 +302,9 @@ async function loadSource(source) {
       const { text, contentType } = await fetchText(url, 8000);
       if (/json/i.test(contentType) || text.trim().startsWith("{") || text.trim().startsWith("[")) {
         const data = JSON.parse(text);
-        const items = normalizeLasercPayload(data, source);
+        const items = normalizeLasercPayload(data, source)
+          .map((it) => ({ ...it, topic: "electricity" }))
+          .filter((it) => isOnTopic(it, "electricity"));
         if (items.length) {
           return { id: source.id, name: source.name, ok: true, error: null, items, via: url };
         }
@@ -251,11 +320,14 @@ async function loadSource(source) {
     const gUrl =
       "https://news.google.com/rss/search?q=LASERC+OR+%22Lagos+State+Electricity+Regulatory%22&hl=en-NG&gl=NG&ceid=NG:en";
     const { text } = await fetchText(gUrl);
-    const items = parseRss(text, { ...source, name: "LASERC · News" }, 6).map((it) => ({
-      ...it,
-      source: "LASERC · News",
-      sourceId: "laserc",
-    }));
+    const items = parseRss(text, { ...source, name: "LASERC · News" }, 8)
+      .map((it) => ({
+        ...it,
+        source: "LASERC · News",
+        sourceId: "laserc",
+        topic: "electricity",
+      }))
+      .filter((it) => isOnTopic(it, "electricity"));
     if (items.length) {
       return {
         id: source.id,
@@ -282,17 +354,22 @@ async function loadSource(source) {
 async function buildFeeds() {
   const settled = await Promise.all(SOURCES.map((s) => loadSource(s)));
   const items = settled
-    .flatMap((s) => s.items)
+    .flatMap((s) => s.items.map((it) => ({ ...it, topic: it.topic || s.topic || null })))
     .filter((it) => it.title)
+    .filter((it) => {
+      const topic = it.topic || "electricity";
+      return isOnTopic(it, topic) || isOnTopic(it, null);
+    })
     .sort((a, b) => {
       const ta = a.publishedAt ? Date.parse(a.publishedAt) : 0;
       const tb = b.publishedAt ? Date.parse(b.publishedAt) : 0;
       return tb - ta;
     })
-    .slice(0, 48);
+    .slice(0, 56);
 
   return {
     generatedAt: new Date().toISOString(),
+    focus: ["electricity", "gis", "geoai"],
     cacheTtlSec: Math.round(CACHE_TTL_MS / 1000),
     sources: settled.map(({ id, name, ok, error, via }) => ({ id, name, ok, error, via: via || null })),
     items,

@@ -14,10 +14,29 @@
     { id: "ikeja", label: "Ikeja Electric" },
     { id: "nerc", label: "NERC" },
     { id: "laserc", label: "LASERC" },
-    { id: "google-power", label: "News" },
-    { id: "nairametrics", label: "Nairametrics" },
-    { id: "google-geo", label: "Geospatial" },
+    { id: "google-power", label: "Electricity" },
+    { id: "google-gis", label: "GIS" },
+    { id: "google-geoai", label: "GeoAI" },
+    { id: "nairametrics", label: "Power press" },
   ];
+
+  function itemMatchesSource(it, sourceId) {
+    if (!sourceId) return true;
+    const sid = String(it.source || it.sourceId || "").toLowerCase();
+    const name = String(it.sourceName || "").toLowerCase();
+    const topic = String(it.topic || "").toLowerCase();
+    if (sid === sourceId || it.sourceId === sourceId) return true;
+    if (sourceId === "ikeja" && name.includes("ikeja")) return true;
+    if (sourceId === "nerc" && name.includes("nerc")) return true;
+    if (sourceId === "laserc" && name.includes("laserc")) return true;
+    if (sourceId === "nairametrics" && name.includes("naira")) return true;
+    if (sourceId === "google-power" && (topic === "electricity" || name.includes("electricity"))) return true;
+    if (sourceId === "google-gis" && (topic === "gis" || name.includes("gis"))) return true;
+    if (sourceId === "google-geoai" && (topic === "geoai" || name.includes("geoai"))) return true;
+    // legacy id from older deploys
+    if (sourceId === "google-geo" && (topic === "gis" || name.includes("geospatial") || name.includes("gis"))) return true;
+    return false;
+  }
 
   const fmtWhen = (iso) => {
     if (!iso) return "";
@@ -41,20 +60,6 @@
   function scheduleTask(fn) {
     if (typeof requestIdleCallback === "function") requestIdleCallback(() => fn(), { timeout: 1200 });
     else setTimeout(fn, 0);
-  }
-
-  function itemMatchesSource(it, sourceId) {
-    if (!sourceId) return true;
-    const sid = String(it.source || it.sourceId || "").toLowerCase();
-    const name = String(it.sourceName || "").toLowerCase();
-    if (sid === sourceId) return true;
-    if (sourceId === "ikeja" && name.includes("ikeja")) return true;
-    if (sourceId === "nerc" && name.includes("nerc")) return true;
-    if (sourceId === "laserc" && name.includes("laserc")) return true;
-    if (sourceId === "nairametrics" && name.includes("naira")) return true;
-    if (sourceId === "google-power" && (name.includes("power") || name.includes("google news · power"))) return true;
-    if (sourceId === "google-geo" && (name.includes("geospatial") || name.includes("google news · geo"))) return true;
-    return false;
   }
 
   function renderTabsHtml(sources) {
