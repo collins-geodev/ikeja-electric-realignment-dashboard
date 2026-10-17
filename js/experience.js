@@ -119,104 +119,15 @@
     experience.starsRaf = requestAnimationFrame(draw);
   }
 
-  /* ---------- Soft instrumental pad (royalty-free generative) ---------- */
-  function ensureAudio() {
-    if (experience.audioCtx) return;
-    const AC = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AC();
-    const master = ctx.createGain();
-    master.gain.value = 0.028;
-    const compressor = ctx.createDynamicsCompressor();
-    compressor.threshold.value = -28;
-    compressor.knee.value = 18;
-    compressor.ratio.value = 3.5;
-    compressor.attack.value = 0.02;
-    compressor.release.value = 0.35;
-    master.connect(compressor);
-    compressor.connect(ctx.destination);
-
-    const makeVoice = (freq, type, gainVal, filterHz, delayMs = 0) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      const f = ctx.createBiquadFilter();
-      o.type = type;
-      o.frequency.value = freq;
-      f.type = "lowpass";
-      f.frequency.value = filterHz;
-      f.Q.value = 0.7;
-      g.gain.value = 0;
-      o.connect(f);
-      f.connect(g);
-      g.connect(master);
-      o.start();
-      const now = ctx.currentTime + delayMs;
-      g.gain.setValueAtTime(0, now);
-      g.gain.linearRampToValueAtTime(gainVal, now + 2.8);
-      return { o, g, f };
-    };
-
-    // Warm major-7th pad + soft “sax-like” lead (filtered, vibrato)
-    const padRoot = makeVoice(130.81, "sine", 0.22, 520);       // C3
-    const padThird = makeVoice(164.81, "sine", 0.16, 560, 0.4); // E3
-    const padFifth = makeVoice(196.0, "triangle", 0.09, 480, 0.8); // G3
-    const padMaj7 = makeVoice(246.94, "sine", 0.07, 640, 1.2);  // B3
-    const softLead = makeVoice(392.0, "sawtooth", 0.035, 900, 1.6); // G4 soft
-
-    const vib = ctx.createOscillator();
-    const vibGain = ctx.createGain();
-    vib.frequency.value = 4.6;
-    vibGain.gain.value = 2.2;
-    vib.connect(vibGain);
-    vibGain.connect(softLead.o.frequency);
-    vib.start();
-
-    const lfo = ctx.createOscillator();
-    const lfoGain = ctx.createGain();
-    lfo.frequency.value = 0.045;
-    lfoGain.gain.value = 0.008;
-    lfo.connect(lfoGain);
-    lfoGain.connect(master.gain);
-    lfo.start();
-
-    // Gentle arpeggio pulses every ~5.5s
-    const arpNotes = [261.63, 329.63, 392.0, 493.88, 392.0, 329.63];
-    let arpIdx = 0;
-    const arpTimer = setInterval(() => {
-      if (!experience.audioOn || ctx.state !== "running") return;
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      const f = ctx.createBiquadFilter();
-      o.type = "triangle";
-      o.frequency.value = arpNotes[arpIdx % arpNotes.length];
-      f.type = "lowpass";
-      f.frequency.value = 1100;
-      g.gain.value = 0;
-      o.connect(f);
-      f.connect(g);
-      g.connect(master);
-      const t0 = ctx.currentTime;
-      g.gain.linearRampToValueAtTime(0.045, t0 + 0.08);
-      g.gain.exponentialRampToValueAtTime(0.001, t0 + 1.8);
-      o.start(t0);
-      o.stop(t0 + 2);
-      arpIdx += 1;
-    }, 5500);
-
-    experience.audioCtx = ctx;
-    experience.nodes = { master, padRoot, padThird, padFifth, padMaj7, softLead, vib, lfo, arpTimer };
-  }
-
+  /* Ambient instrumental is owned by js/audio.js (hosted royalty-free track). */
   function setAudio(on) {
     experience.audioOn = on;
-    const btn = $("#btn-audio");
-    if (on) {
-      ensureAudio();
-      experience.audioCtx.resume();
-      if (btn) btn.textContent = "Mute ambient instrumental";
-    } else if (experience.audioCtx) {
-      experience.audioCtx.suspend();
-      if (btn) btn.textContent = "Play ambient instrumental";
+    if (window.IKEDCAudio?.setPlaying) {
+      window.IKEDCAudio.setPlaying(on);
+      return;
     }
+    const btn = $("#btn-audio");
+    if (btn) btn.textContent = on ? "Mute ambient instrumental" : "Play ambient instrumental";
   }
 
   /* ---------- View switching ---------- */
@@ -980,12 +891,10 @@
     $("#btn-theme")?.addEventListener("click", () => {
       applyTheme(experience.theme === "dark" ? "light" : "dark");
     });
-    $("#btn-audio")?.addEventListener("click", () => setAudio(!experience.audioOn));
-    const unlock = () => {
-      if (!experience.audioOn) setAudio(true);
-      document.removeEventListener("pointerdown", unlock);
-    };
-    document.addEventListener("pointerdown", unlock, { once: true });
+    // Audio button + autoplay unlock handled by js/audio.js when present
+    if (!window.IKEDCAudio) {
+      $("#btn-audio")?.addEventListener("click", () => setAudio(!experience.audioOn));
+    }
 
     $("#btn-export-pdf")?.addEventListener("click", () => exportPDF());
     $("#btn-export-dual-xlsx")?.addEventListener("click", () => exportDualWorkbook());
