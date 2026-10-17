@@ -149,17 +149,8 @@
     <p class="io-status" id="io-status" hidden></p>
     <section class="kpi-strip" id="kpi-strip" aria-label="Key performance indicators"></section>
 
-    <section class="card intel-feed-card" aria-label="Live industry feeds">
-      <div class="card-head">
-        <div>
-          <h2>Live feeds</h2>
-          <p>Electricity · FG policy · DisCo AI/ML · GIS · GeoAI — tabs sync across views</p>
-        </div>
-      </div>
-      <div id="intel-feed" class="live-feed-host live-feed-host--compact"></div>
-    </section>
-
-    <main>
+    <div class="intel-shell">
+    <main class="intel-main">
       <section class="panel tab-panel active" id="panel-overview" role="tabpanel">
         <div class="grid overview-grid">
           <div class="card map-card">
@@ -304,6 +295,17 @@
         </div>
       </section>
     </main>
+
+    <aside class="card intel-feed-rail" aria-label="Live industry feeds">
+      <div class="card-head">
+        <div>
+          <h2>Live feeds</h2>
+          <p>Electricity · FG policy · DisCo AI/ML · GIS · GeoAI</p>
+        </div>
+      </div>
+      <div id="intel-feed" class="live-feed-host live-feed-host--rail"></div>
+    </aside>
+    </div>
 
     <footer class="footer">
       <span id="footer-meta">Loading QGIS export…</span>
