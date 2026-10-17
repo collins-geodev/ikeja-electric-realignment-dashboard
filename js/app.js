@@ -1163,6 +1163,66 @@
     }
   }
 
+  /**
+   * Mount Leaflet layers control into a title-area host.
+   * Collapsed by default behind a "Filter Layers" toggle.
+   */
+  function attachTitleLayerFilter(map, bases, overlays, host, existingControl) {
+    if (!map || !host) return existingControl || null;
+    if (existingControl) {
+      try { map.removeControl(existingControl); } catch (_) { /* ignore */ }
+    }
+    host.innerHTML = "";
+    const wrap = document.createElement("div");
+    wrap.className = "map-layer-filter";
+    wrap.innerHTML = `
+      <button type="button" class="map-layer-filter-btn" aria-expanded="false" aria-controls="">
+        <span class="map-layer-filter-heading">Filter Layers</span>
+        <span class="map-layer-filter-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="map-layer-filter-panel" hidden></div>`;
+    host.appendChild(wrap);
+    const btn = wrap.querySelector(".map-layer-filter-btn");
+    const panel = wrap.querySelector(".map-layer-filter-panel");
+    const panelId = `map-layers-panel-${Math.random().toString(36).slice(2, 9)}`;
+    panel.id = panelId;
+    btn.setAttribute("aria-controls", panelId);
+
+    const closePanel = () => {
+      panel.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+      wrap.classList.remove("open");
+    };
+    const openPanel = () => {
+      panel.hidden = false;
+      btn.setAttribute("aria-expanded", "true");
+      wrap.classList.add("open");
+    };
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (panel.hidden) openPanel();
+      else closePanel();
+    });
+    const onDocClick = (e) => {
+      if (!wrap.isConnected) {
+        document.removeEventListener("click", onDocClick);
+        return;
+      }
+      if (!wrap.contains(e.target) && !panel.hidden) closePanel();
+    };
+    document.addEventListener("click", onDocClick);
+
+    const ctrl = L.control.layers(bases, overlays, {
+      position: "topright",
+      collapsed: false,
+    }).addTo(map);
+    const box = ctrl.getContainer();
+    box.classList.add("map-layer-filter-leaflet");
+    /* Keep out of the map corner — live in the title dropdown */
+    panel.appendChild(box);
+    return ctrl;
+  }
+
   function initMap() {
     if (state.map) return;
     state.map = L.map("map", { zoomControl: true }).setView([6.6, 3.45], 11);
@@ -1177,7 +1237,8 @@
       if (LAYER_DEFAULTS[key] && state.layers[key]) state.layers[key].addTo(state.map);
     });
 
-    state.layerControl = L.control.layers(
+    state.layerControl = attachTitleLayerFilter(
+      state.map,
       {
         "Hybrid satellite": state.baseTile,
         "Light canvas": lightCanvas,
@@ -1195,8 +1256,9 @@
         "TCN stations": state.layers.tcn,
         "Uploaded layers": state.layers.uploads,
       },
-      { position: "topright", collapsed: false }
-    ).addTo(state.map);
+      document.getElementById("intel-map-layers"),
+      state.layerControl
+    );
 
     state.map.on("zoomend", updateLabelVisibility);
     state.map.on("baselayerchange", (e) => {
@@ -1845,6 +1907,7 @@
     feederDisplayName,
     buDisplayName,
     utDisplayName,
+    attachTitleLayerFilter,
     popupHtml: {
       bu: buPopupHtml,
       ut: utPopupHtml,

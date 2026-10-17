@@ -248,25 +248,32 @@
           experience.coverageLayers[key].addTo(experience.coverageMap);
         }
       });
-      coverageLayerControl = L.control.layers(
-        {
-          "Hybrid satellite": coverageBaseLayer,
-          "Light canvas": L.tileLayer(ESRI.lightGray, { attribution: "Tiles © Esri", maxZoom: 16 }),
-          "Dark canvas": L.tileLayer(ESRI.darkGray, { attribution: "Tiles © Esri", maxZoom: 16 }),
-        },
-        {
-          "Lagos boundary": experience.coverageLayers.lagos,
-          "Business Units": experience.coverageLayers.bus,
-          "Undertakings": experience.coverageLayers.ut,
-          "Feeders 11 kV": experience.coverageLayers.feeders11,
-          "Feeders 33 kV": experience.coverageLayers.feeders33,
-          "Public DTs": experience.coverageLayers.dtsPublic,
-          "Private DTs": experience.coverageLayers.dtsPrivate,
-          "Injection substations (ISS)": experience.coverageLayers.iss,
-          "TCN stations": experience.coverageLayers.tcn,
-        },
-        { position: "topright", collapsed: false }
-      ).addTo(experience.coverageMap);
+      const attach = window.IKEDC?.attachTitleLayerFilter;
+      const bases = {
+        "Hybrid satellite": coverageBaseLayer,
+        "Light canvas": L.tileLayer(ESRI.lightGray, { attribution: "Tiles © Esri", maxZoom: 16 }),
+        "Dark canvas": L.tileLayer(ESRI.darkGray, { attribution: "Tiles © Esri", maxZoom: 16 }),
+      };
+      const overlays = {
+        "Lagos boundary": experience.coverageLayers.lagos,
+        "Business Units": experience.coverageLayers.bus,
+        "Undertakings": experience.coverageLayers.ut,
+        "Feeders 11 kV": experience.coverageLayers.feeders11,
+        "Feeders 33 kV": experience.coverageLayers.feeders33,
+        "Public DTs": experience.coverageLayers.dtsPublic,
+        "Private DTs": experience.coverageLayers.dtsPrivate,
+        "Injection substations (ISS)": experience.coverageLayers.iss,
+        "TCN stations": experience.coverageLayers.tcn,
+      };
+      const host = document.getElementById("cov-map-layers");
+      if (attach && host) {
+        coverageLayerControl = attach(experience.coverageMap, bases, overlays, host, coverageLayerControl);
+      } else {
+        coverageLayerControl = L.control.layers(bases, overlays, {
+          position: "topright",
+          collapsed: true,
+        }).addTo(experience.coverageMap);
+      }
     }
   }
 
@@ -1077,21 +1084,26 @@
     layers.iss.addTo(map);
     layers.tcn.addTo(map);
 
-    const layerCtrl = L.control.layers(
-      { "Hybrid satellite": base },
-      {
-        "Business Units": layers.bus,
-        "Feeders 11 kV": layers.feeders11,
-        "Feeders 33 kV": layers.feeders33,
-        "Public DTs": layers.dtsPublic,
-        "Private DTs": layers.dtsPrivate,
-        "Injection substations (ISS)": layers.iss,
-        "TCN stations": layers.tcn,
-      },
-      { position: "topright", collapsed: false }
-    );
-    layerCtrl.addTo(map);
-    map._ikedcLayerControl = layerCtrl;
+    const storyHostId = {
+      glance: "story-layers-glance",
+      before: "story-layers-before",
+      quality: "story-layers-quality",
+    }[key];
+    const storyHost = storyHostId ? document.getElementById(storyHostId) : null;
+    const bases = { "Hybrid satellite": base };
+    const overlays = {
+      "Business Units": layers.bus,
+      "Feeders 11 kV": layers.feeders11,
+      "Feeders 33 kV": layers.feeders33,
+      "Public DTs": layers.dtsPublic,
+      "Private DTs": layers.dtsPrivate,
+      "Injection substations (ISS)": layers.iss,
+      "TCN stations": layers.tcn,
+    };
+    const attach = window.IKEDC?.attachTitleLayerFilter;
+    map._ikedcLayerControl = attach && storyHost
+      ? attach(map, bases, overlays, storyHost, map._ikedcLayerControl)
+      : L.control.layers(bases, overlays, { position: "topright", collapsed: true }).addTo(map);
 
     const labels = window.IKEDC?.getLabels?.() || experience.labels || { bu: [], ut: [] };
     const buLab = L.layerGroup();

@@ -145,9 +145,12 @@
       <section class="panel tab-panel active" id="panel-overview" role="tabpanel">
         <div class="grid overview-grid">
           <div class="card map-card">
-            <div class="card-head">
-              <h2>Network geography</h2>
-              <p>Lagos boundary · 2026 BUs · UTs · feeders · DTs · ISS / TCN</p>
+            <div class="card-head card-head-map">
+              <div class="card-head-text">
+                <h2>Network geography</h2>
+                <p>Lagos boundary · 2026 BUs · UTs · feeders · DTs · ISS / TCN</p>
+              </div>
+              <div class="map-layer-host" id="intel-map-layers" data-map-layers></div>
             </div>
             <div id="map" class="map"></div>
             <div class="map-legend" id="map-legend"></div>
@@ -363,9 +366,12 @@
 
       <section class="cov-center">
         <div class="card map-card cov-map-card">
-          <div class="card-head">
-            <h2>Realignment zones</h2>
-            <p id="cov-map-subtitle">Hybrid satellite · Lagos boundary · BU fills · feeder corridors</p>
+          <div class="card-head card-head-map">
+            <div class="card-head-text">
+              <h2>Realignment zones</h2>
+              <p id="cov-map-subtitle">Hybrid satellite · Lagos boundary · BU fills · feeder corridors</p>
+            </div>
+            <div class="map-layer-host" id="cov-map-layers" data-map-layers></div>
           </div>
           <div id="coverage-map" class="map"></div>
         </div>
@@ -462,11 +468,17 @@
         <div class="chart-box h-260"><canvas id="story-chart-glance-feeders"></canvas></div>
       </div>
       <div class="story-cards" style="margin-top:1rem">
-        <article><h3>One franchise map</h3><p>Lagos State context, five 2026 BU fills, Undertakings, feeders, DTs, ISS and TCN on hybrid satellite — toggle layers from the map control.</p></article>
+        <article><h3>One franchise map</h3><p>Lagos State context, five 2026 BU fills, Undertakings, feeders, DTs, ISS and TCN on hybrid satellite — use Filter Layers in the map title bar.</p></article>
         <article><h3>One asset register</h3><p>20,789 distribution transformers tagged to 2026 BU / UT with public vs private ownership symbology.</p></article>
         <article><h3>One MV network view</h3><p>418 feeders (11 kV cool-blue / 33 kV warm-orange) animated as a live corridor layer with length and DT load metrics.</p></article>
       </div>
-      <div id="story-map-glance" class="story-map-panel" aria-label="Franchise overview map"></div>
+      <div class="story-map-shell">
+        <div class="story-map-toolbar">
+          <span class="story-map-toolbar-label">Franchise overview</span>
+          <div class="map-layer-host" id="story-layers-glance" data-map-layers></div>
+        </div>
+        <div id="story-map-glance" class="story-map-panel" aria-label="Franchise overview map"></div>
+      </div>
     </section>
 
     <section class="story-panel" data-story-panel="before" role="tabpanel" id="story-before" hidden>
@@ -483,7 +495,13 @@
         <li><strong>Insight</strong> — Consolidation reduced UT count while Ikeja grew capacity (8 → 10 UTs) as the urban core.</li>
       </ul>
       <div class="story-media-strip">
-        <div id="story-map" class="story-map-mini"></div>
+        <div class="story-map-shell">
+          <div class="story-map-toolbar">
+            <span class="story-map-toolbar-label">Before / after map</span>
+            <div class="map-layer-host" id="story-layers-before" data-map-layers></div>
+          </div>
+          <div id="story-map" class="story-map-mini"></div>
+        </div>
         <div class="chart-box h-280"><canvas id="story-chart-compare"></canvas></div>
       </div>
       <div class="story-cards" style="margin-top:1rem">
@@ -549,7 +567,13 @@
         Hybrid imagery, feeder fidelity, and ownership splits close the loop between map and register.
       </p>
       <div class="story-media-strip">
-        <div id="story-map-quality" class="story-map-mini"></div>
+        <div class="story-map-shell">
+          <div class="story-map-toolbar">
+            <span class="story-map-toolbar-label">Quality map</span>
+            <div class="map-layer-host" id="story-layers-quality" data-map-layers></div>
+          </div>
+          <div id="story-map-quality" class="story-map-mini"></div>
+        </div>
         <div class="chart-box h-280"><canvas id="story-chart-agree"></canvas></div>
       </div>
       <div class="chart-box h-240" style="margin-top:1rem"><canvas id="story-chart-quality-ut"></canvas></div>
