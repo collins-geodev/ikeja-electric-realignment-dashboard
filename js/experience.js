@@ -12,7 +12,12 @@
     nodes: null,
     starsRaf: 0,
     coverageMap: null,
-    coverageLayers: { bus: null, feeders: null, highlight: null, buLabels: null, utLabels: null },
+    coverageLayers: {
+      lagos: null, bus: null, ut: null, feeders11: null, feeders33: null,
+      dtsPublic: null, dtsPrivate: null, iss: null, tcn: null, buLabels: null, utLabels: null,
+    },
+    coverageDtRenderer: null,
+    coverageFeederRenderer: null,
     labels: null,
     coverageCharts: {},
     coverageFocusBu: null,
@@ -200,21 +205,66 @@
   let coverageBaseLayer = null;
   let coverageLayerControl = null;
 
+  const COV_LAYER_DEFAULTS = {
+    lagos: true,
+    bus: true,
+    ut: true,
+    feeders11: true,
+    feeders33: true,
+    dtsPublic: true,
+    dtsPrivate: true,
+    iss: true,
+    tcn: true,
+  };
+
+  const COV_FEEDER_11 = {
+    color: "#5ec8ff", weight: 1.65, opacity: 0.9, lineCap: "round",
+    className: "feeder-line feeder-11kv",
+  };
+  const COV_FEEDER_33 = {
+    color: "#ff7a3d", weight: 2.85, opacity: 0.95, lineCap: "round",
+    className: "feeder-line feeder-33kv",
+  };
+
+  function ensureCoverageLayerGroups() {
+    const keys = Object.keys(COV_LAYER_DEFAULTS).concat(["buLabels", "utLabels"]);
+    keys.forEach((k) => {
+      if (!experience.coverageLayers[k]) experience.coverageLayers[k] = L.layerGroup();
+    });
+    if (!experience.coverageDtRenderer) experience.coverageDtRenderer = L.canvas({ padding: 0.5 });
+    if (!experience.coverageFeederRenderer) experience.coverageFeederRenderer = L.svg({ padding: 0.35 });
+  }
+
   function setCoverageBasemap() {
     if (!experience.coverageMap) return;
-    if (coverageBaseLayer) experience.coverageMap.removeLayer(coverageBaseLayer);
-    coverageBaseLayer = hybridBasemapGroup();
-    coverageBaseLayer.addTo(experience.coverageMap);
+    ensureCoverageLayerGroups();
+    if (!coverageBaseLayer) {
+      coverageBaseLayer = hybridBasemapGroup();
+      coverageBaseLayer.addTo(experience.coverageMap);
+    }
     if (!coverageLayerControl) {
-      const gray = experience.theme === "light" ? ESRI.lightGray : ESRI.darkGray;
+      Object.keys(COV_LAYER_DEFAULTS).forEach((key) => {
+        if (COV_LAYER_DEFAULTS[key] && experience.coverageLayers[key]) {
+          experience.coverageLayers[key].addTo(experience.coverageMap);
+        }
+      });
       coverageLayerControl = L.control.layers(
         {
           "Hybrid satellite": coverageBaseLayer,
           "Light canvas": L.tileLayer(ESRI.lightGray, { attribution: "Tiles © Esri", maxZoom: 16 }),
           "Dark canvas": L.tileLayer(ESRI.darkGray, { attribution: "Tiles © Esri", maxZoom: 16 }),
-          Streets: L.tileLayer(gray, { attribution: "Tiles © Esri", maxZoom: 16 }),
         },
-        null,
+        {
+          "Lagos boundary": experience.coverageLayers.lagos,
+          "Business Units": experience.coverageLayers.bus,
+          "Undertakings": experience.coverageLayers.ut,
+          "Feeders 11 kV": experience.coverageLayers.feeders11,
+          "Feeders 33 kV": experience.coverageLayers.feeders33,
+          "Public DTs": experience.coverageLayers.dtsPublic,
+          "Private DTs": experience.coverageLayers.dtsPrivate,
+          "Injection substations (ISS)": experience.coverageLayers.iss,
+          "TCN stations": experience.coverageLayers.tcn,
+        },
         { position: "topright", collapsed: true }
       ).addTo(experience.coverageMap);
     }
@@ -283,16 +333,17 @@
         experience.coverageMap.remove();
         experience.coverageMap = null;
         coverageLayerControl = null;
+        coverageBaseLayer = null;
+        experience.coverageLayers = {
+          lagos: null, bus: null, ut: null, feeders11: null, feeders33: null,
+          dtsPublic: null, dtsPrivate: null, iss: null, tcn: null, buLabels: null, utLabels: null,
+        };
       }
       experience.coverageMap = L.map(el, { zoomControl: true }).setView([6.55, 3.5], 10);
       setCoverageBasemap();
     }
 
-    if (!opts.keepMap || force || !experience.coverageLayers.bus) {
-      redrawCoverageLayers(data);
-    } else {
-      redrawCoverageLayers(data);
-    }
+    requestAnimationFrame(() => redrawCoverageLayers(data));
 
     destroyCovCharts();
     const bus = data.business_units.slice().sort((a, b) => b.dt_total - a.dt_total);
@@ -410,21 +461,26 @@
 
   function redrawCoverageLayers(data) {
     if (!experience.coverageMap) return;
-    ["bus", "feeders", "highlight", "lagos", "buLabels", "utLabels"].forEach((k) => {
-      if (experience.coverageLayers[k]) {
-        experience.coverageMap.removeLayer(experience.coverageLayers[k]);
-        experience.coverageLayers[k] = null;
-      }
+    ensureCoverageLayerGroups();
+    const map = experience.coverageMap;
+    const Lyr = experience.coverageLayers;
+    const wasOn = {};
+    Object.keys(COV_LAYER_DEFAULTS).forEach((k) => {
+      wasOn[k] = !!(Lyr[k] && map.hasLayer(Lyr[k]));
+    });
+    const firstPaint = !Object.values(wasOn).some(Boolean);
+
+    Object.keys(Lyr).forEach((k) => {
+      if (Lyr[k]) Lyr[k].clearLayers();
     });
 
     const bounds = [];
     if (experience.lagos?.features?.length) {
-      experience.coverageLayers.lagos = L.geoJSON(experience.lagos, {
+      L.geoJSON(experience.lagos, {
         style: { color: "#f0b429", weight: 2.5, fillOpacity: 0.02, dashArray: "6 4" },
-      }).addTo(experience.coverageMap);
+      }).addTo(Lyr.lagos);
     }
 
-    const buGroup = L.layerGroup();
     data.map.bu_polygons.forEach((b) => {
       const dim = experience.coverageFocusBu && b.bu_name !== experience.coverageFocusBu;
       b.rings.forEach((ring) => {
@@ -435,82 +491,172 @@
           fillColor: b.fill_hex,
           fillOpacity: dim ? 0.06 : 0.28,
         })
-          .bindPopup(`<strong>${b.bu_name}</strong>`)
+          .bindPopup(`<strong>${buLabel(b.bu_name)}</strong>`)
           .on("click", () => setCoverageFocus(b.bu_name))
-          .addTo(buGroup);
+          .addTo(Lyr.bus);
         if (!dim) latlngs.forEach((ll) => bounds.push(ll));
       });
     });
-    experience.coverageLayers.bus = buGroup.addTo(experience.coverageMap);
+
+    (data.map.ut_polygons || []).forEach((u) => {
+      if (experience.coverageFocusBu && u.bu_name !== experience.coverageFocusBu) return;
+      u.rings.forEach((ring) => {
+        const latlngs = ring.map(([lon, lat]) => [lat, lon]);
+        L.polygon(latlngs, {
+          color: u.fill_hex, weight: 1, fillOpacity: 0.04, dashArray: "4 4",
+        })
+          .bindPopup(`<strong>${u.ut_name}</strong> (${buLabel(u.bu_name)})`)
+          .addTo(Lyr.ut);
+      });
+    });
 
     const feeders = window.IKEDC?.getFeedersGeo?.();
-    const feederGroup = L.layerGroup();
     if (feeders?.features) {
       feeders.features.forEach((feat) => {
         const p = feat.properties || {};
         const bu = p.new_bu || p.bu;
         if (experience.coverageFocusBu && bu && bu !== experience.coverageFocusBu) return;
         const name = p.feeder || p.name || "";
-        const isFocus = experience.coverageFocusFeeder && String(name).toLowerCase().includes(String(experience.coverageFocusFeeder).toLowerCase());
+        const display = window.IKEDC?.feederDisplayName?.(name, p.voltage) || name;
+        const isFocus = experience.coverageFocusFeeder &&
+          String(name).toLowerCase() === String(experience.coverageFocusFeeder).toLowerCase();
         const is33 = String(p.voltage || "").includes("33");
+        const style = isFocus
+          ? { color: "#ff4d4d", weight: 3.8, opacity: 1, className: "feeder-line feeder-focus", lineCap: "round" }
+          : (is33 ? { ...COV_FEEDER_33 } : { ...COV_FEEDER_11 });
         L.geoJSON(feat, {
-          style: {
-            color: isFocus ? "#ff4d4d" : (is33 ? "#f0a020" : "#4db6ff"),
-            weight: isFocus ? 4 : (is33 ? 2.2 : 1.4),
-            opacity: isFocus ? 1 : 0.85,
-          },
+          renderer: experience.coverageFeederRenderer,
+          style,
           onEachFeature: (_f, lyr) => {
-            lyr.bindPopup(`<strong>${name}</strong><br>${p.voltage || ""} · ${bu || "—"}`);
+            lyr.bindPopup(`<strong>${display}</strong><br>${p.voltage || ""} · ${bu || "—"} / ${p.new_ut || "—"}`);
             lyr.on("click", () => {
-              experience.coverageFocusFeeder = name;
+              experience.coverageFocusFeeder =
+                experience.coverageFocusFeeder === name ? null : name;
               redrawCoverageLayers(data);
               renderCovFeederList(data);
             });
           },
-        }).addTo(feederGroup);
+        }).addTo(is33 ? Lyr.feeders33 : Lyr.feeders11);
       });
     }
-    experience.coverageLayers.feeders = feederGroup.addTo(experience.coverageMap);
+
+    const dts = (data.map.dt_sample || []).filter((d) => {
+      if (experience.coverageFocusBu && d.bu !== experience.coverageFocusBu) return false;
+      return true;
+    });
+    const renderer = experience.coverageDtRenderer;
+    dts.forEach((p) => {
+      const priv = String(p.own || "").toUpperCase().includes("PRIVATE");
+      L.circleMarker([p.lat, p.lon], {
+        radius: priv ? 3 : 2.5,
+        color: priv ? "#fff7f2" : "#dcefff",
+        weight: priv ? 1.1 : 0.85,
+        fillColor: priv ? "#e4572e" : "#3d9cf0",
+        fillOpacity: 0.88,
+        renderer,
+      })
+        .bindPopup(`<strong>${p.name || "DT"}</strong><br>${priv ? "Private" : "Public"} · ${p.feeder || "—"} · ${p.bu || ""} / ${p.ut || ""}`)
+        .addTo(priv ? Lyr.dtsPrivate : Lyr.dtsPublic);
+    });
+
+    (data.map.iss || []).forEach((p) => {
+      L.circleMarker([p.lat, p.lon], {
+        radius: 5, color: "#e8a317", weight: 2, fillColor: "#e8a317", fillOpacity: 0.85,
+      })
+        .bindPopup(`ISS: <strong>${p.name}</strong>`)
+        .addTo(Lyr.iss);
+    });
+
+    (data.map.tcn || []).forEach((p) => {
+      L.marker([p.lat, p.lon], {
+        icon: L.divIcon({
+          className: "",
+          html: `<div style="width:10px;height:10px;background:#fff;border:2px solid #c8452c;transform:rotate(45deg)"></div>`,
+          iconSize: [10, 10],
+        }),
+      })
+        .bindPopup(`TCN: <strong>${p.name}</strong>`)
+        .addTo(Lyr.tcn);
+    });
 
     const labels = experience.labels || window.IKEDC?.getLabels?.() || { bu: [], ut: [] };
-    const buLab = L.layerGroup();
     (labels.bu || []).forEach((lab) => {
       if (experience.coverageFocusBu && lab.name !== experience.coverageFocusBu) return;
-      L.marker([lab.lat, lab.lon], { icon: mapLabelIcon(lab.name, "bu", lab.fill), interactive: false }).addTo(buLab);
+      L.marker([lab.lat, lab.lon], { icon: mapLabelIcon(lab.name, "bu", lab.fill), interactive: false })
+        .addTo(Lyr.buLabels);
     });
-    experience.coverageLayers.buLabels = buLab;
-
-    const utLab = L.layerGroup();
     (labels.ut || []).forEach((lab) => {
       if (experience.coverageFocusBu && lab.bu !== experience.coverageFocusBu) return;
-      L.marker([lab.lat, lab.lon], { icon: mapLabelIcon(lab.name, "ut", lab.fill), interactive: false }).addTo(utLab);
+      L.marker([lab.lat, lab.lon], { icon: mapLabelIcon(lab.name, "ut", lab.fill), interactive: false })
+        .addTo(Lyr.utLabels);
     });
-    experience.coverageLayers.utLabels = utLab;
 
-    experience.coverageMap.off("zoomend", updateCoverageLabelVisibility);
-    experience.coverageMap.on("zoomend", updateCoverageLabelVisibility);
+    Object.keys(COV_LAYER_DEFAULTS).forEach((key) => {
+      const prefer = firstPaint ? COV_LAYER_DEFAULTS[key] : wasOn[key];
+      const group = Lyr[key];
+      if (!group) return;
+      if (prefer) {
+        if (!map.hasLayer(group)) group.addTo(map);
+      } else if (map.hasLayer(group)) {
+        map.removeLayer(group);
+      }
+    });
+
+    map.off("zoomend", updateCoverageLabelVisibility);
+    map.on("zoomend", updateCoverageLabelVisibility);
     updateCoverageLabelVisibility();
 
     if (bounds.length) {
-      experience.coverageMap.fitBounds(bounds, { padding: [28, 28], maxZoom: 12 });
+      map.fitBounds(bounds, { padding: [28, 28], maxZoom: 12 });
     }
-    setTimeout(() => experience.coverageMap.invalidateSize(), 80);
+    setTimeout(() => map.invalidateSize(), 80);
+  }
+
+  function buLabel(code) {
+    return window.IKEDC?.buDisplayName?.(code) || `${String(code || "")
+      .toLowerCase()
+      .replace(/\b([a-z])/g, (m) => m.toUpperCase())} Business Unit`;
   }
 
   function renderCovChips(data) {
     const host = $("#cov-bu-chips");
     if (!host) return;
-    host.innerHTML = data.business_units.map((b) => `
-      <button type="button" class="cov-bu-chip ${experience.coverageFocusBu === b.bu_name ? "active" : ""}" data-bu="${b.bu_name}" style="border-color:${b.fill_hex}">
-        ${b.bu_name}
-      </button>`).join("");
-    host.querySelectorAll("[data-bu]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const bu = btn.dataset.bu;
+    host.innerHTML = `
+      <table class="cov-bu-table" role="grid" aria-label="Filter by Business Unit">
+        <thead>
+          <tr>
+            <th>Business Unit</th>
+            <th>UTs</th>
+            <th>DTs</th>
+            <th>Area km²</th>
+            <th>DTs / km²</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.business_units.map((b) => {
+            const dens = b.dt_per_km2 ?? (b.area_km2 ? +(b.dt_total / b.area_km2).toFixed(1) : 0);
+            const active = experience.coverageFocusBu === b.bu_name ? "active" : "";
+            return `<tr class="cov-bu-row ${active}" data-bu="${b.bu_name}" style="--bu-accent:${b.fill_hex}">
+              <td class="cov-bu-name"><span class="cov-bu-swatch" aria-hidden="true"></span>${buLabel(b.bu_name)}</td>
+              <td>${b.ut_count}</td>
+              <td>${fmt.format(b.dt_total)}</td>
+              <td>${b.area_km2.toFixed(1)}</td>
+              <td>${Number(dens).toFixed(1)}</td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>`;
+    host.querySelectorAll("[data-bu]").forEach((row) => {
+      row.addEventListener("click", () => {
+        const bu = row.dataset.bu;
         setCoverageFocus(experience.coverageFocusBu === bu ? null : bu);
       });
     });
-    $("#cov-clear-filter")?.addEventListener("click", () => setCoverageFocus(null), { once: true });
+    const clearBtn = $("#cov-clear-filter");
+    if (clearBtn && !clearBtn.dataset.wired) {
+      clearBtn.dataset.wired = "1";
+      clearBtn.addEventListener("click", () => setCoverageFocus(null));
+    }
   }
 
   function renderCovInsights(data, totalArea) {
@@ -575,26 +721,58 @@
   function renderCovFeederList(data) {
     const host = $("#cov-feeder-list");
     if (!host) return;
+    const fullName = (f) =>
+      window.IKEDC?.feederDisplayName?.(f.feeder, f.voltage) || f.feeder;
     let rows = (data.feeders || []).slice();
     if (experience.coverageFocusBu) {
       rows = rows.filter((f) => f.new_bu === experience.coverageFocusBu);
     }
     rows.sort((a, b) => (b.dt_count || 0) - (a.dt_count || 0));
-    rows = rows.slice(0, 12);
+    rows = rows.slice(0, 18);
     if (!rows.length) {
-      host.innerHTML = `<li><button type="button" disabled>No feeders in current focus</button></li>`;
+      host.innerHTML = `<div class="live-feed-empty">No feeders in current focus</div>`;
       return;
     }
-    host.innerHTML = rows.map((f) => `
-      <li><button type="button" class="${experience.coverageFocusFeeder === f.feeder ? "active" : ""}" data-feeder="${f.feeder}">
-        ${f.feeder} · ${fmt.format(f.dt_count || 0)} DTs · ${f.new_bu || "—"}
-      </button></li>`).join("");
-    host.querySelectorAll("[data-feeder]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        experience.coverageFocusFeeder = btn.dataset.feeder;
-        if (!experience.coverageFocusBu) {
-          const row = rows.find((r) => r.feeder === btn.dataset.feeder);
-          if (row?.new_bu) experience.coverageFocusBu = row.new_bu;
+    host.innerHTML = `
+      <div class="table-wrap cov-feeder-table-wrap">
+        <table class="cov-feeder-table" aria-label="Top feeders in focus">
+          <thead>
+            <tr>
+              <th>Feeder</th>
+              <th>kV</th>
+              <th>BU</th>
+              <th>UT</th>
+              <th>DTs</th>
+              <th>km</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((f) => {
+              const name = fullName(f);
+              const active = experience.coverageFocusFeeder === f.feeder ? "active" : "";
+              return `<tr class="${active}" data-feeder="${encodeURIComponent(f.feeder)}" title="${name}">
+                <td class="feeder-name-cell">${name}</td>
+                <td>${String(f.voltage || "").replace(/kV/i, "") || "—"}</td>
+                <td>${f.new_bu || "—"}</td>
+                <td>${f.new_ut || "—"}</td>
+                <td>${fmt.format(f.dt_count || 0)}</td>
+                <td>${Number(f.len_km || 0).toFixed(1)}</td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>`;
+    host.querySelectorAll("tr[data-feeder]").forEach((tr) => {
+      tr.addEventListener("click", () => {
+        const feeder = decodeURIComponent(tr.dataset.feeder || "");
+        if (experience.coverageFocusFeeder === feeder) {
+          experience.coverageFocusFeeder = null;
+        } else {
+          experience.coverageFocusFeeder = feeder;
+          if (!experience.coverageFocusBu) {
+            const row = rows.find((r) => r.feeder === feeder);
+            if (row?.new_bu) experience.coverageFocusBu = row.new_bu;
+          }
         }
         redrawCoverageLayers(data);
         renderCovFeederList(data);
@@ -610,11 +788,11 @@
 
   /* ---------- Story map ---------- */
   const BU_BLURBS = {
-    IKEJA: "10 Undertakings and the largest asset base — the busiest Business Unit in the franchise.",
-    AKOWONJO: "10 Undertakings across a varied urban mix, including Dopemu, the heaviest Undertaking.",
-    IKORODU: "The widest territory — nearly two-thirds of franchise area, where distance drives workload.",
-    OSHODI: "Consolidated Undertakings with a nearly even public/private transformer mix.",
-    SHOMOLU: "The densest Business Unit — compact territory and short travel between assets.",
+    IKEJA: "Ikeja Business Unit anchors the franchise with 10 Undertakings and the largest DT register — the operational centre of gravity for crews and planners.",
+    AKOWONJO: "Akowonjo Business Unit spans 10 Undertakings across a mixed urban fabric, including Dopemu — the heaviest single Undertaking by transformer count.",
+    IKORODU: "Ikorodu Business Unit is the widest territory — nearly two-thirds of franchise area — where feeder length and travel time dominate workload design.",
+    OSHODI: "Oshodi Business Unit consolidated from a larger pre-2026 UT set into six Undertakings, with a nearly even public/private transformer mix.",
+    SHOMOLU: "Shomolu Business Unit is the densest territory — compact geography, short asset spacing, and high transformers per square kilometre.",
   };
 
   function showStoryTab(tabId, { animate = true } = {}) {
@@ -679,7 +857,7 @@
     if (cards) {
       cards.innerHTML = data.business_units.map((b) => `
         <button type="button" class="story-bu-card" style="--bu-color:${b.fill_hex}" data-bu="${b.bu_name}">
-          <h3>${b.bu_name}</h3>
+          <h3>${buLabel(b.bu_name)}</h3>
           <p>${BU_BLURBS[b.bu_name] || `${b.ut_count} UTs · ${fmt.format(b.dt_total)} DTs · ${b.area_km2.toFixed(0)} km²`}</p>
           <p style="margin-top:0.45rem"><strong>${fmt.format(b.dt_total)}</strong> DTs · <strong>${(b.dt_total / b.area_km2).toFixed(1)}</strong> / km²</p>
         </button>`).join("");
@@ -711,22 +889,97 @@
       experience.storyMap = null;
     }
     const map = L.map(el, { zoomControl: true, attributionControl: false }).setView([6.55, 3.5], 10);
-    hybridBasemapGroup().addTo(map);
+    const base = hybridBasemapGroup();
+    base.addTo(map);
+
+    const layers = {
+      bus: L.layerGroup(),
+      feeders11: L.layerGroup(),
+      feeders33: L.layerGroup(),
+      dtsPublic: L.layerGroup(),
+      dtsPrivate: L.layerGroup(),
+      iss: L.layerGroup(),
+      tcn: L.layerGroup(),
+    };
+    const dtRenderer = L.canvas({ padding: 0.5 });
+    const feederRenderer = L.svg({ padding: 0.35 });
     const bounds = [];
+
     data.map.bu_polygons.forEach((b) => {
       b.rings.forEach((ring) => {
         const latlngs = ring.map(([lon, lat]) => [lat, lon]);
         L.polygon(latlngs, {
-          color: b.fill_hex, weight: 2, fillColor: b.fill_hex, fillOpacity: 0.35,
+          color: b.fill_hex, weight: 2, fillColor: b.fill_hex, fillOpacity: 0.32,
         })
-          .bindTooltip(b.bu_name)
+          .bindTooltip(buLabel(b.bu_name))
           .on("click", () => {
             window.IKEDC?.setFilters?.({ bus: [b.bu_name], uts: [], feeders: [], dts: [] });
           })
-          .addTo(map);
+          .addTo(layers.bus);
         latlngs.forEach((ll) => bounds.push(ll));
       });
     });
+
+    const feeders = window.IKEDC?.getFeedersGeo?.();
+    (feeders?.features || []).forEach((feat) => {
+      const p = feat.properties || {};
+      const is33 = String(p.voltage || "").includes("33");
+      const name = window.IKEDC?.feederDisplayName?.(p.feeder, p.voltage) || p.feeder;
+      L.geoJSON(feat, {
+        renderer: feederRenderer,
+        style: is33 ? { ...COV_FEEDER_33 } : { ...COV_FEEDER_11 },
+        onEachFeature: (_f, lyr) => lyr.bindPopup(`<strong>${name}</strong>`),
+      }).addTo(is33 ? layers.feeders33 : layers.feeders11);
+    });
+
+    (data.map.dt_sample || []).slice(0, 4000).forEach((p) => {
+      const priv = String(p.own || "").toUpperCase().includes("PRIVATE");
+      L.circleMarker([p.lat, p.lon], {
+        radius: priv ? 2.8 : 2.3,
+        color: priv ? "#fff7f2" : "#dcefff",
+        weight: priv ? 1 : 0.8,
+        fillColor: priv ? "#e4572e" : "#3d9cf0",
+        fillOpacity: 0.85,
+        renderer: dtRenderer,
+      }).addTo(priv ? layers.dtsPrivate : layers.dtsPublic);
+    });
+
+    (data.map.iss || []).forEach((p) => {
+      L.circleMarker([p.lat, p.lon], {
+        radius: 4, color: "#e8a317", weight: 2, fillColor: "#e8a317", fillOpacity: 0.85,
+      }).bindPopup(`ISS: <strong>${p.name}</strong>`).addTo(layers.iss);
+    });
+
+    (data.map.tcn || []).forEach((p) => {
+      L.circleMarker([p.lat, p.lon], {
+        radius: 5, color: "#c8452c", weight: 2, fillColor: "#fff", fillOpacity: 0.9,
+      }).bindPopup(`TCN: <strong>${p.name}</strong>`).addTo(layers.tcn);
+    });
+
+    layers.bus.addTo(map);
+    layers.feeders11.addTo(map);
+    layers.feeders33.addTo(map);
+    layers.iss.addTo(map);
+    layers.tcn.addTo(map);
+    if (key === "glance" || key === "quality") {
+      layers.dtsPublic.addTo(map);
+      layers.dtsPrivate.addTo(map);
+    }
+
+    L.control.layers(
+      { "Hybrid satellite": base },
+      {
+        "Business Units": layers.bus,
+        "Feeders 11 kV": layers.feeders11,
+        "Feeders 33 kV": layers.feeders33,
+        "Public DTs": layers.dtsPublic,
+        "Private DTs": layers.dtsPrivate,
+        "Injection substations (ISS)": layers.iss,
+        "TCN stations": layers.tcn,
+      },
+      { position: "topright", collapsed: true }
+    ).addTo(map);
+
     const labels = experience.labels || window.IKEDC?.getLabels?.() || { bu: [], ut: [] };
     const buLab = L.layerGroup();
     const utLab = L.layerGroup();
@@ -786,8 +1039,26 @@
 
     const storyFilterBu = (buName) => {
       if (!buName) return;
-      window.IKEDC?.setFilters?.({ bus: [buName], uts: [], feeders: [], dts: [] });
-      setCoverageFocus(buName);
+      const cur = window.IKEDC?.getFilters?.();
+      const same = cur?.bus?.length === 1 && cur.bus[0] === buName && !cur.uts?.length;
+      if (same) {
+        window.IKEDC?.setFilters?.({ bus: [], uts: [], feeders: [], dts: [] });
+        setCoverageFocus(null);
+      } else {
+        window.IKEDC?.setFilters?.({ bus: [buName], uts: [], feeders: [], dts: [] });
+        setCoverageFocus(buName);
+      }
+    };
+
+    const storyFilterOwn = (label) => {
+      const cur = window.IKEDC?.getFilters?.();
+      const next = cur?.dtOwn === label ? null : label;
+      window.IKEDC?.setFilters?.({ dtOwn: next });
+    };
+
+    const storyFilterUt = (utName) => {
+      if (!utName) return;
+      window.IKEDC?.applyBuFilterFromLabel?.(utName);
     };
 
     const byBuAgree = bus.map((b) => {
@@ -935,13 +1206,14 @@
       },
     });
 
+    const qualityUts = data.undertakings.slice().sort((a, b) => a.agreement_pct - b.agreement_pct).slice(0, 12);
     mk("story-chart-quality-ut", {
       type: "bar",
       data: {
-        labels: data.undertakings.slice().sort((a, b) => a.agreement_pct - b.agreement_pct).slice(0, 12).map((u) => u.ut_name),
+        labels: qualityUts.map((u) => u.ut_name),
         datasets: [{
           label: "Agreement %",
-          data: data.undertakings.slice().sort((a, b) => a.agreement_pct - b.agreement_pct).slice(0, 12).map((u) => u.agreement_pct),
+          data: qualityUts.map((u) => u.agreement_pct),
           backgroundColor: "#2e8b57",
           borderRadius: 4,
         }],
@@ -950,6 +1222,10 @@
         responsive: true,
         maintainAspectRatio: false,
         layout: { padding: { top: 16 } },
+        onClick: (_e, elems) => {
+          if (!elems.length) return;
+          storyFilterUt(qualityUts[elems[0].index]?.ut_name);
+        },
         plugins: {
           legend: { display: false },
           valueLabels: { display: true, suffix: "%", decimals: 1, fontSize: 10 },
@@ -978,6 +1254,16 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        onClick: (_e, elems) => {
+          if (!elems.length) return;
+          const band = elems[0].index === 0 ? "high" : "mid";
+          /* Surface the lowest-agreement UTs for the selected band via Intelligence UT filter */
+          const pool = data.undertakings
+            .filter((u) => (band === "high" ? u.agreement_pct >= 97 : u.agreement_pct < 97))
+            .sort((a, b) => a.agreement_pct - b.agreement_pct);
+          const pick = pool[0];
+          if (pick) storyFilterUt(pick.ut_name);
+        },
         plugins: {
           legend: { position: "bottom", labels: { color: t.text } },
           valueLabels: { display: true, decimals: 0, fontSize: 12 },
@@ -1001,6 +1287,10 @@
         responsive: true,
         maintainAspectRatio: false,
         layout: { padding: { top: 16 } },
+        onClick: (_e, elems) => {
+          if (!elems.length) return;
+          storyFilterBu(bus[elems[0].index]?.bu_name);
+        },
         plugins: {
           legend: { display: false },
           valueLabels: { display: true, suffix: "%", decimals: 1, fontSize: 11 },
@@ -1097,7 +1387,7 @@
     mk("story-chart-own", {
       type: "doughnut",
       data: {
-        labels: ["Public", "Private"],
+        labels: ["PUBLIC", "PRIVATE"],
         datasets: [{
           data: [data.kpis.dt_public, data.kpis.dt_private],
           backgroundColor: ["#1f6fb2", "#c8452c"],
@@ -1108,6 +1398,11 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        onClick: (_e, elems) => {
+          if (!elems.length) return;
+          const label = elems[0].index === 0 ? "PUBLIC" : "PRIVATE";
+          storyFilterOwn(label);
+        },
         plugins: {
           legend: { position: "bottom", labels: { color: t.text } },
           valueLabels: { display: true, decimals: 0, fontSize: 12 },
@@ -1150,7 +1445,7 @@
     if (tbody) {
       tbody.innerHTML = bus.map((b) => `
         <tr data-bu="${b.bu_name}">
-          <td>${b.bu_name}</td>
+          <td>${buLabel(b.bu_name)}</td>
           <td>${b.ut_count}</td>
           <td>${b.dt_total.toLocaleString()}</td>
           <td>${b.area_km2.toFixed(1)}</td>

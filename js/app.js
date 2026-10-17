@@ -13,11 +13,19 @@
     uts: [],
     feeders: [],
     dts: [],
+    dtOwn: null,
+    installPos: null,
+    fidelityBand: null,
+    capacityBand: null,
     map: null,
     layers: {
-      bu: null, ut: null, dts: null, iss: null, tcn: null,
+      bu: null, ut: null, dtsPublic: null, dtsPrivate: null, iss: null, tcn: null,
       feeders11: null, feeders33: null, buLabels: null, utLabels: null, uploads: null, lagos: null,
     },
+    layerControl: null,
+    dtRenderer: null,
+    feederRenderer: null,
+    mapRedrawRaf: 0,
     uploads: [],
     lagos: null,
     baseTile: null,
@@ -25,6 +33,80 @@
     activeTab: "overview",
     rendered: { overview: false, assets: false, feeders: false },
   };
+
+  /** Overlay checklist defaults — multi-select, not exclusive */
+  const LAYER_DEFAULTS = {
+    lagos: true,
+    bu: true,
+    ut: true,
+    feeders11: true,
+    feeders33: true,
+    dtsPublic: true,
+    dtsPrivate: true,
+    iss: true,
+    tcn: true,
+    uploads: true,
+  };
+
+  const FEEDER_STYLE_11 = {
+    color: "#5ec8ff",
+    weight: 1.65,
+    opacity: 0.9,
+    lineCap: "round",
+    lineJoin: "round",
+    className: "feeder-line feeder-11kv",
+  };
+  const FEEDER_STYLE_33 = {
+    color: "#ff7a3d",
+    weight: 2.85,
+    opacity: 0.95,
+    lineCap: "round",
+    lineJoin: "round",
+    className: "feeder-line feeder-33kv",
+  };
+
+  const isPrivateOwn = (own) => String(own || "").toUpperCase().includes("PRIVATE");
+
+  function dtMarkerOptions(own, focused, renderer) {
+    const priv = isPrivateOwn(own);
+    if (priv) {
+      return {
+        radius: focused ? 5.5 : 3.1,
+        color: "#fff7f2",
+        weight: focused ? 1.6 : 1.15,
+        fillColor: "#e4572e",
+        fillOpacity: 0.92,
+        renderer,
+      };
+    }
+    return {
+      radius: focused ? 5 : 2.6,
+      color: "#dcefff",
+      weight: focused ? 1.4 : 0.9,
+      fillColor: "#3d9cf0",
+      fillOpacity: 0.88,
+      renderer,
+    };
+  }
+
+  function dtDivIcon(own, focused) {
+    const priv = isPrivateOwn(own);
+    const s = focused ? 14 : 10;
+    if (priv) {
+      return L.divIcon({
+        className: "dt-marker dt-private",
+        html: `<svg width="${s}" height="${s}" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1.2 L12.8 7 L7 12.8 L1.2 7 Z" fill="#e4572e" stroke="#fff" stroke-width="1.35"/></svg>`,
+        iconSize: [s, s],
+        iconAnchor: [s / 2, s / 2],
+      });
+    }
+    return L.divIcon({
+      className: "dt-marker dt-public",
+      html: `<svg width="${s}" height="${s}" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.2" fill="#3d9cf0" stroke="#fff" stroke-width="1.35"/></svg>`,
+      iconSize: [s, s],
+      iconAnchor: [s / 2, s / 2],
+    });
+  }
 
   const chartTheme = () => {
     const theme = document.documentElement.getAttribute("data-theme") || "dark";
@@ -114,6 +196,73 @@
     });
   };
 
+  const fidelityMatch = (f) => {
+    const v = Number(f.in_own_bu);
+    const band = state.fidelityBand;
+    if (!band) return true;
+    if (band === "high") return v >= 0.95;
+    if (band === "mid-high") return v >= 0.8 && v < 0.95;
+    if (band === "mid") return v >= 0.5 && v < 0.8;
+    if (band === "low") return v < 0.5;
+    return true;
+  };
+
+  const capacityMatch = (cap, band) => {
+    if (!band) return true;
+    const n = Number(cap);
+    if (band === "Unknown") return !Number.isFinite(n) || n <= 0;
+    if (!Number.isFinite(n) || n <= 0) return false;
+    if (band === "≤50") return n <= 50;
+    if (band === "51–100") return n >= 51 && n <= 100;
+    if (band === "101–200") return n >= 101 && n <= 200;
+    if (band === "201–300") return n >= 201 && n <= 300;
+    if (band === "301–500") return n >= 301 && n <= 500;
+    if (band === ">500") return n > 500;
+    return true;
+  };
+
+  /** Title-case BU short code → "Ikeja Business Unit" */
+  const buDisplayName = (code) => {
+    if (!code) return "—";
+    const title = String(code)
+      .toLowerCase()
+      .replace(/\b([a-z])/g, (m) => m.toUpperCase());
+    return `${title} Business Unit`;
+  };
+
+  let _feederNomIndex = null;
+  function feederNomIndex() {
+    if (_feederNomIndex) return _feederNomIndex;
+    const byTail = new Map();
+    const byFull = new Map();
+    for (const n of state.data?.nomenclature?.feeders || []) {
+      const full = String(n.name || "");
+      if (!full) continue;
+      byFull.set(full.toLowerCase(), full);
+      const parts = full.split("-");
+      const tail = (parts[parts.length - 1] || "").trim().toLowerCase();
+      if (tail && !byTail.has(tail)) byTail.set(tail, full);
+    }
+    _feederNomIndex = { byTail, byFull };
+    return _feederNomIndex;
+  }
+
+  /** Resolve short feeder meta name to full official nomenclature when available */
+  const feederDisplayName = (shortOrFull, voltage) => {
+    if (!shortOrFull) return "—";
+    const s = String(shortOrFull);
+    const idx = feederNomIndex();
+    const fullHit = idx.byFull.get(s.toLowerCase());
+    if (fullHit) return fullHit;
+    const tailHit = idx.byTail.get(s.toLowerCase());
+    if (tailHit) return tailHit;
+    if (voltage && !/^\d{2}-/i.test(s)) {
+      const v = String(voltage).replace(/\s*kV/i, "");
+      return `${v}-${s}`;
+    }
+    return s;
+  };
+
   const filteredFeedersMeta = () => {
     let rows = state.data.feeders.slice();
     if (!empty(state.bus)) rows = rows.filter((f) => state.bus.includes(f.new_bu));
@@ -121,6 +270,7 @@
     if (!empty(state.feeders)) {
       rows = rows.filter((f) => matchFeederLine(f.feeder, state.feeders));
     }
+    if (state.fidelityBand) rows = rows.filter(fidelityMatch);
     return rows;
   };
 
@@ -130,6 +280,17 @@
     if (!empty(state.uts)) dts = dts.filter((d) => state.uts.includes(d.ut));
     if (!empty(state.feeders)) dts = dts.filter((d) => state.feeders.includes(d.feeder));
     if (!empty(state.dts)) dts = dts.filter((d) => state.dts.includes(d.name));
+    if (state.dtOwn) {
+      const own = String(state.dtOwn).toUpperCase();
+      dts = dts.filter((d) => String(d.own || "").toUpperCase().includes(own));
+    }
+    if (state.installPos) {
+      const pos = String(state.installPos).toLowerCase();
+      dts = dts.filter((d) => String(d.install || d.install_pos || d.position || "").toLowerCase().includes(pos));
+    }
+    if (state.capacityBand) {
+      dts = dts.filter((d) => capacityMatch(d.cap, state.capacityBand));
+    }
     return dts;
   };
 
@@ -251,6 +412,8 @@
       state.feeders = [];
       state.dts = [];
       refreshAll({ zoom: true });
+      if (state.uts.length) setStatus(`Filtered · UT: ${state.uts[0]} (${state.bus[0] || ""})`);
+      else setStatus("UT chart filter cleared");
       return true;
     }
     const hit = buNames.find((n) => n === text || text.toUpperCase() === n);
@@ -265,6 +428,9 @@
     state.feeders = [];
     state.dts = [];
     refreshAll({ zoom: true });
+    if (state.uts.length) setStatus(`Filtered · UT: ${state.uts[0]} (${state.bus[0] || ""})`);
+    else if (state.bus.length) setStatus(`Filtered · ${buDisplayName(state.bus[0])}`);
+    else setStatus("BU / UT chart filter cleared");
     return true;
   }
 
@@ -483,9 +649,10 @@
       .slice(0, 50);
 
     tbody.innerHTML = rows
-      .map(
-        (f) => `<tr data-feeder="${encodeURIComponent(f.name)}" data-bu="${f.bu.split(",")[0].trim()}" class="${state.feeders.includes(f.name) ? "active" : ""}">
-        <td title="${f.name}">${f.name.length > 48 ? f.name.slice(0, 48) + "…" : f.name}</td>
+      .map((f) => {
+        const fullName = feederDisplayName(f.name, f.voltage);
+        return `<tr data-feeder="${encodeURIComponent(f.name)}" data-bu="${f.bu.split(",")[0].trim()}" class="${state.feeders.includes(f.name) ? "active" : ""}">
+        <td class="feeder-name-cell" title="${fullName}">${fullName}</td>
         <td>${String(f.voltage).replace("kV", "")}</td>
         <td>${f.bu}</td>
         <td>${f.ut}</td>
@@ -493,8 +660,8 @@
         <td>${Number(f.len_km).toFixed(1)}</td>
         <td>${pct(Number(f.in_own_bu) * (Number(f.in_own_bu) <= 1 ? 100 : 1))}</td>
         <td>${pct(Number(f.in_own_ut) * (Number(f.in_own_ut) <= 1 ? 100 : 1))}</td>
-      </tr>`
-      )
+      </tr>`;
+      })
       .join("");
     tbody.querySelectorAll("tr[data-feeder]").forEach((tr) => {
       tr.addEventListener("click", () => {
@@ -591,9 +758,27 @@
     ], { legend: false, valueLabels: true, labelDecimals: 1 });
 
     const own = countsFor("ownership").slice(0, 6);
-    doughnut("own", "chart-ownership", own.map((d) => d.name), own.map((d) => d.count), ["#1f6fb2", "#c8452c", "#6b7c90"], { onClick: () => {} });
+    doughnut("own", "chart-ownership", own.map((d) => d.name), own.map((d) => d.count), ["#1f6fb2", "#c8452c", "#6b7c90"], {
+      onClick: (_e, elems) => {
+        if (!elems.length) return;
+        const label = own[elems[0].index]?.name;
+        state.dtOwn = state.dtOwn === label ? null : label;
+        state.dts = [];
+        refreshAll({ zoom: true });
+        setStatus(state.dtOwn ? `Filtered DTs · ownership: ${state.dtOwn}` : "Ownership filter cleared");
+      },
+    });
     const install = countsFor("install_pos").slice(0, 6);
-    doughnut("install", "chart-install", install.map((d) => d.name), install.map((d) => d.count), ["#2e8b57", "#d99a1e", "#7a4fb5", "#6b7c90"], { onClick: () => {} });
+    doughnut("install", "chart-install", install.map((d) => d.name), install.map((d) => d.count), ["#2e8b57", "#d99a1e", "#7a4fb5", "#6b7c90"], {
+      onClick: (_e, elems) => {
+        if (!elems.length) return;
+        const label = install[elems[0].index]?.name;
+        state.installPos = state.installPos === label ? null : label;
+        state.dts = [];
+        refreshAll({ zoom: true });
+        setStatus(state.installPos ? `Filtered DTs · install: ${state.installPos}` : "Install-position filter cleared");
+      },
+    });
 
     let re = state.data.dt_analytics.reassignments || [];
     if (!empty(state.bus)) re = re.filter((r) => state.bus.some((b) => r.name.includes(b)));
@@ -604,6 +789,13 @@
       legend: false,
       labelDecimals: 0,
       filterBu: false,
+      onClick: (_e, elems) => {
+        if (!elems.length) return;
+        const name = re[elems[0].index]?.name || "";
+        const buHit = state.data.business_units.find((b) => name.toUpperCase().includes(b.bu_name));
+        if (buHit) applyBuFilterFromLabel(buHit.bu_name);
+        else setStatus(`Reassignment flow: ${name}`);
+      },
       scales: {
         x: { ticks: { maxRotation: 45, minRotation: 30, font: { size: 9 } }, grid: { display: false } },
         y: { beginAtZero: true, ticks: { callback: (v) => fmt.format(v) } },
@@ -616,7 +808,20 @@
       .sort((a, b) => binsOrder.indexOf(a.name) - binsOrder.indexOf(b.name));
     barChart("cap", "chart-capacity", bins.map((b) => b.name), [
       { label: "DTs", data: bins.map((b) => b.count), backgroundColor: "#d99a1e", borderRadius: 6 },
-    ], { legend: false, labelDecimals: 0, filterBu: false });
+    ], {
+      legend: false,
+      labelDecimals: 0,
+      filterBu: false,
+      onClick: (_e, elems) => {
+        if (!elems.length) return;
+        const label = bins[elems[0].index]?.name;
+        if (!label) return;
+        state.capacityBand = state.capacityBand === label ? null : label;
+        state.dts = [];
+        refreshAll({ zoom: true });
+        setStatus(state.capacityBand ? `Filtered DTs · capacity: ${state.capacityBand}` : "Capacity filter cleared");
+      },
+    });
 
     state.rendered.assets = true;
   }
@@ -632,6 +837,9 @@
     ], { labelDecimals: 0 });
 
     const sample = filteredFeedersMeta().slice(0, 180);
+    const toPts = (rows) => rows.map((f) => ({
+      x: f.len_km, y: f.dt_count, feeder: f.feeder, bu: f.new_bu, ut: f.new_ut,
+    }));
     destroyChart("scatter");
     state.charts.scatter = new Chart(document.getElementById("chart-feeder-scatter"), {
       type: "scatter",
@@ -639,12 +847,12 @@
         datasets: [
           {
             label: "11 kV",
-            data: sample.filter((f) => f.voltage === "11kV").map((f) => ({ x: f.len_km, y: f.dt_count })),
+            data: toPts(sample.filter((f) => f.voltage === "11kV")),
             backgroundColor: "rgba(31,111,178,0.75)",
           },
           {
             label: "33 kV",
-            data: sample.filter((f) => f.voltage === "33kV").map((f) => ({ x: f.len_km, y: f.dt_count })),
+            data: toPts(sample.filter((f) => f.voltage === "33kV")),
             backgroundColor: "rgba(200,69,44,0.8)",
           },
         ],
@@ -653,9 +861,33 @@
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
+        onClick: (_evt, elems) => {
+          if (!elems.length) return;
+          const el = elems[0];
+          const pt = state.charts.scatter.data.datasets[el.datasetIndex].data[el.index];
+          if (!pt?.feeder) return;
+          if (state.feeders.length === 1 && state.feeders[0] === pt.feeder) {
+            state.feeders = [];
+          } else {
+            state.feeders = [pt.feeder];
+            if (pt.bu) state.bus = [pt.bu];
+            if (pt.ut) state.uts = [pt.ut];
+          }
+          state.dts = [];
+          refreshAll({ zoom: true });
+          setStatus(`Feeder focus · ${pt.feeder}`);
+        },
         plugins: {
           legend: { position: "bottom" },
           valueLabels: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const p = ctx.raw || {};
+                return `${p.feeder || "Feeder"} · ${p.x?.toFixed?.(1) ?? p.x} km · ${p.y} DTs`;
+              },
+            },
+          },
         },
         scales: {
           x: { title: { display: true, text: "Length (km)" }, beginAtZero: true },
@@ -666,14 +898,26 @@
 
     const fidelity = filteredFeedersMeta();
     const buckets = [
-      { name: "≥95% in-own BU", count: fidelity.filter((f) => f.in_own_bu >= 0.95).length },
-      { name: "80–95%", count: fidelity.filter((f) => f.in_own_bu >= 0.8 && f.in_own_bu < 0.95).length },
-      { name: "50–80%", count: fidelity.filter((f) => f.in_own_bu >= 0.5 && f.in_own_bu < 0.8).length },
-      { name: "<50%", count: fidelity.filter((f) => f.in_own_bu < 0.5).length },
+      { name: "≥95% in-own BU", count: fidelity.filter((f) => f.in_own_bu >= 0.95).length, key: "high" },
+      { name: "80–95%", count: fidelity.filter((f) => f.in_own_bu >= 0.8 && f.in_own_bu < 0.95).length, key: "mid-high" },
+      { name: "50–80%", count: fidelity.filter((f) => f.in_own_bu >= 0.5 && f.in_own_bu < 0.8).length, key: "mid" },
+      { name: "<50%", count: fidelity.filter((f) => f.in_own_bu < 0.5).length, key: "low" },
     ];
     barChart("fid", "chart-fidelity", buckets.map((b) => b.name), [
       { label: "Feeders", data: buckets.map((b) => b.count), backgroundColor: ["#2e8b57", "#d99a1e", "#c8452c", "#6b7c90"], borderRadius: 6 },
-    ], { legend: false, labelDecimals: 0, filterBu: false });
+    ], {
+      legend: false,
+      labelDecimals: 0,
+      filterBu: false,
+      onClick: (_e, elems) => {
+        if (!elems.length) return;
+        const key = buckets[elems[0].index]?.key;
+        state.fidelityBand = state.fidelityBand === key ? null : key;
+        state.feeders = [];
+        refreshAll({ zoom: true });
+        setStatus(state.fidelityBand ? `Fidelity band · ${buckets[elems[0].index].name}` : "Fidelity filter cleared");
+      },
+    });
 
     renderFeederTable();
     state.rendered.feeders = true;
@@ -707,13 +951,33 @@
     }
   }
 
-  function clearMapLayers() {
-    Object.entries(state.layers).forEach(([key, layer]) => {
-      if (layer && state.map) {
-        try { state.map.removeLayer(layer); } catch (_) { /* ignore */ }
-      }
-      state.layers[key] = null;
+  function ensureAssetLayerGroups() {
+    const keys = ["lagos", "bu", "ut", "feeders11", "feeders33", "dtsPublic", "dtsPrivate", "iss", "tcn", "buLabels", "utLabels", "uploads"];
+    keys.forEach((k) => {
+      if (!state.layers[k]) state.layers[k] = L.layerGroup();
     });
+    if (!state.dtRenderer) state.dtRenderer = L.canvas({ padding: 0.5 });
+    /* SVG renderer so CSS stroke-dashoffset animation can energize feeder paths */
+    if (!state.feederRenderer) state.feederRenderer = L.svg({ padding: 0.35 });
+  }
+
+  function clearLayerGroup(group) {
+    if (group) group.clearLayers();
+  }
+
+  function isOverlayOnMap(group) {
+    return !!(state.map && group && state.map.hasLayer(group));
+  }
+
+  function syncOverlayOnMap(key, preferOn) {
+    const group = state.layers[key];
+    if (!state.map || !group) return;
+    const on = preferOn == null ? isOverlayOnMap(group) : !!preferOn;
+    if (on) {
+      if (!state.map.hasLayer(group)) group.addTo(state.map);
+    } else if (state.map.hasLayer(group)) {
+      state.map.removeLayer(group);
+    }
   }
 
   function collectFilterBounds() {
@@ -784,17 +1048,36 @@
     state.map = L.map("map", { zoomControl: true }).setView([6.6, 3.45], 11);
     state.baseTile = makeHybridBasemap();
     state.baseTile.addTo(state.map);
+    ensureAssetLayerGroups();
+
     const lightCanvas = L.tileLayer(ESRI_TILES.lightGray, { attribution: "Tiles © Esri", maxZoom: 16 });
     const darkCanvas = L.tileLayer(ESRI_TILES.darkGray, { attribution: "Tiles © Esri", maxZoom: 16 });
-    L.control.layers(
+
+    Object.keys(LAYER_DEFAULTS).forEach((key) => {
+      if (LAYER_DEFAULTS[key] && state.layers[key]) state.layers[key].addTo(state.map);
+    });
+
+    state.layerControl = L.control.layers(
       {
         "Hybrid satellite": state.baseTile,
         "Light canvas": lightCanvas,
         "Dark canvas": darkCanvas,
       },
-      null,
+      {
+        "Lagos boundary": state.layers.lagos,
+        "Business Units": state.layers.bu,
+        "Undertakings": state.layers.ut,
+        "Feeders 11 kV": state.layers.feeders11,
+        "Feeders 33 kV": state.layers.feeders33,
+        "Public DTs": state.layers.dtsPublic,
+        "Private DTs": state.layers.dtsPrivate,
+        "Injection substations (ISS)": state.layers.iss,
+        "TCN stations": state.layers.tcn,
+        "Uploaded layers": state.layers.uploads,
+      },
       { position: "topright", collapsed: true }
     ).addTo(state.map);
+
     state.map.on("zoomend", updateLabelVisibility);
     state.map.on("baselayerchange", (e) => {
       state.baseTile = e.layer;
@@ -803,14 +1086,34 @@
   }
 
   function redrawMapLayers(opts = {}) {
-    if (!state.map) return;
-    clearMapLayers();
+    if (!state.map || !state.data) return;
+    ensureAssetLayerGroups();
+
+    /* Remember which overlays the user currently has checked */
+    const wasOn = {};
+    Object.keys(state.layers).forEach((k) => {
+      wasOn[k] = isOverlayOnMap(state.layers[k]);
+    });
+    const firstPaint = !Object.values(wasOn).some(Boolean);
+
+    clearLayerGroup(state.layers.lagos);
+    clearLayerGroup(state.layers.bu);
+    clearLayerGroup(state.layers.ut);
+    clearLayerGroup(state.layers.feeders11);
+    clearLayerGroup(state.layers.feeders33);
+    clearLayerGroup(state.layers.dtsPublic);
+    clearLayerGroup(state.layers.dtsPrivate);
+    clearLayerGroup(state.layers.iss);
+    clearLayerGroup(state.layers.tcn);
+    clearLayerGroup(state.layers.buLabels);
+    clearLayerGroup(state.layers.utLabels);
+    clearLayerGroup(state.layers.uploads);
 
     if (state.lagos?.features?.length) {
-      state.layers.lagos = L.geoJSON(state.lagos, {
+      L.geoJSON(state.lagos, {
         style: { color: "#e8a317", weight: 2.2, fillOpacity: 0.02, dashArray: "7 5" },
         onEachFeature: (f, lyr) => lyr.bindPopup(`<strong>${f.properties?.name || "Lagos State"}</strong>`),
-      }).addTo(state.map);
+      }).addTo(state.layers.lagos);
     }
 
     const buPolys = state.data.map.bu_polygons.filter((b) => inSet(state.bus, b.bu_name));
@@ -820,47 +1123,41 @@
       return true;
     });
 
-    state.layers.bu = L.layerGroup();
     buPolys.forEach((b) => {
       ringsToLatLngs(b.rings).forEach((latlngs) => {
         L.polygon(latlngs, {
           color: b.fill_hex, weight: 2, fillColor: b.fill_hex, fillOpacity: 0.18,
         })
-          .bindPopup(`<strong>${b.bu_name}</strong><br>${fmt.format(b.dt_total)} DTs · ${b.area_km2} km²`)
+          .bindPopup(`<strong>${buDisplayName(b.bu_name)}</strong><br>${fmt.format(b.dt_total)} DTs · ${b.area_km2} km²`)
           .addTo(state.layers.bu);
       });
     });
-    state.layers.bu.addTo(state.map);
 
-    state.layers.ut = L.layerGroup();
     utPolys.forEach((u) => {
       ringsToLatLngs(u.rings).forEach((latlngs) => {
         L.polygon(latlngs, {
           color: u.fill_hex, weight: 1, fillOpacity: 0.05, dashArray: "4 4",
         })
-          .bindPopup(`<strong>${u.ut_name}</strong> (${u.bu_name})<br>${fmt.format(u.dt_total)} DTs · ${u.area_km2} km²`)
+          .bindPopup(`<strong>${u.ut_name}</strong> (${buDisplayName(u.bu_name)})<br>${fmt.format(u.dt_total)} DTs · ${u.area_km2} km²`)
           .addTo(state.layers.ut);
       });
     });
-    state.layers.ut.addTo(state.map);
 
-    state.layers.feeders11 = L.layerGroup();
-    state.layers.feeders33 = L.layerGroup();
     (state.feedersGeo?.features || []).forEach((feat) => {
       const p = feat.properties || {};
       if (!inSet(state.bus, p.new_bu) && p.new_bu) return;
       if (!inSet(state.uts, p.new_ut) && p.new_ut && !empty(state.uts)) return;
       if (!matchFeederLine(p.feeder, state.feeders)) return;
-      const is33 = p.voltage === "33kV";
-      const style = {
-        color: is33 ? "#f0a020" : "#4db6ff",
-        weight: is33 ? 2.2 : 1.6,
-        opacity: 0.85,
-      };
+      const is33 = p.voltage === "33kV" || String(p.voltage || "").includes("33");
+      const focusedFeeder = !empty(state.feeders) && matchFeederLine(p.feeder, state.feeders);
+      const style = focusedFeeder
+        ? { color: "#ff4d4d", weight: 3.6, opacity: 1, className: "feeder-line feeder-focus", lineCap: "round" }
+        : (is33 ? { ...FEEDER_STYLE_33 } : { ...FEEDER_STYLE_11 });
       L.geoJSON(feat, {
+        renderer: state.feederRenderer,
         style,
-        onEachFeature: (f, lyr) => {
-          const display = state.feeders.find((n) => matchFeederLine(p.feeder, [n])) || p.feeder;
+        onEachFeature: (_f, lyr) => {
+          const display = feederDisplayName(p.feeder, p.voltage);
           lyr.bindPopup(
             `<strong>${display}</strong><br>${p.voltage} · ${p.new_bu || "—"} / ${p.new_ut || "—"}<br>` +
             `${fmt.format(p.dt_count || 0)} DTs · ${Number(p.len_km || 0).toFixed(1)} km`
@@ -868,27 +1165,29 @@
         },
       }).addTo(is33 ? state.layers.feeders33 : state.layers.feeders11);
     });
-    state.layers.feeders11.addTo(state.map);
-    state.layers.feeders33.addTo(state.map);
 
     const dts = filteredDTs();
-    state.layers.dts = L.layerGroup();
+    const focused = !empty(state.dts) || dts.length <= 500;
+    const renderer = state.dtRenderer;
     dts.forEach((p) => {
-      L.circleMarker([p.lat, p.lon], {
-        radius: empty(state.dts) ? 2.2 : 5,
-        color: p.own === "PRIVATE" ? "#c8452c" : "#4aa3ff",
-        weight: empty(state.dts) ? 0 : 1,
-        fillOpacity: 0.65,
-      })
-        .bindPopup(
-          `<strong>${p.name || "DT"}</strong><br>` +
-          `Feeder: ${p.feeder || "—"}<br>${p.bu || "—"} / ${p.ut || "—"} · ${p.own || ""}`
-        )
-        .addTo(state.layers.dts);
+      const priv = isPrivateOwn(p.own);
+      const target = priv ? state.layers.dtsPrivate : state.layers.dtsPublic;
+      const popup =
+        `<strong>${p.name || "DT"}</strong><br>` +
+        `${priv ? "Private" : "Public"} · Feeder: ${feederDisplayName(p.feeder)}<br>` +
+        `${p.bu || "—"} / ${p.ut || "—"}` +
+        (p.cap != null ? `<br>${p.cap} kVA` : "");
+      if (focused && dts.length <= 800) {
+        L.marker([p.lat, p.lon], { icon: dtDivIcon(p.own, !empty(state.dts)) })
+          .bindPopup(popup)
+          .addTo(target);
+      } else {
+        L.circleMarker([p.lat, p.lon], dtMarkerOptions(p.own, !empty(state.dts), renderer))
+          .bindPopup(popup)
+          .addTo(target);
+      }
     });
-    state.layers.dts.addTo(state.map);
 
-    state.layers.iss = L.layerGroup();
     (state.data.map.iss || []).forEach((p) => {
       L.circleMarker([p.lat, p.lon], {
         radius: 5, color: "#e8a317", weight: 2, fillColor: "#e8a317", fillOpacity: 0.85,
@@ -896,9 +1195,7 @@
         .bindPopup(`ISS: <strong>${p.name}</strong>`)
         .addTo(state.layers.iss);
     });
-    state.layers.iss.addTo(state.map);
 
-    state.layers.tcn = L.layerGroup();
     (state.data.map.tcn || []).forEach((p) => {
       L.marker([p.lat, p.lon], {
         icon: L.divIcon({
@@ -910,16 +1207,13 @@
         .bindPopup(`TCN: <strong>${p.name}</strong>`)
         .addTo(state.layers.tcn);
     });
-    state.layers.tcn.addTo(state.map);
 
-    state.layers.buLabels = L.layerGroup();
     ((state.labels && state.labels.bu) || []).forEach((lab) => {
       if (!inSet(state.bus, lab.name)) return;
       L.marker([lab.lat, lab.lon], { icon: labelIcon(lab.name, "bu", lab.fill), interactive: false })
         .addTo(state.layers.buLabels);
     });
 
-    state.layers.utLabels = L.layerGroup();
     ((state.labels && state.labels.ut) || []).forEach((lab) => {
       if (!inSet(state.bus, lab.bu)) return;
       if (!inSet(state.uts, lab.name)) return;
@@ -928,11 +1222,10 @@
     });
 
     if (state.uploads.length) {
-      state.layers.uploads = L.layerGroup();
       state.uploads.forEach((fc) => {
         L.geoJSON(fc, {
           style: { color: "#e8a317", weight: 2, fillOpacity: 0.15 },
-          pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+          pointToLayer: (_f, latlng) => L.circleMarker(latlng, {
             radius: 4, color: "#e8a317", fillOpacity: 0.8,
           }),
           onEachFeature: (f, lyr) => {
@@ -941,23 +1234,39 @@
           },
         }).addTo(state.layers.uploads);
       });
-      state.layers.uploads.addTo(state.map);
     }
+
+    /* Restore overlay visibility (or apply defaults on first paint) */
+    Object.keys(LAYER_DEFAULTS).forEach((key) => {
+      const prefer = firstPaint ? LAYER_DEFAULTS[key] : wasOn[key];
+      syncOverlayOnMap(key, prefer);
+    });
 
     updateLabelVisibility();
 
-    document.getElementById("map-legend").innerHTML = `
+    const legend = document.getElementById("map-legend");
+    if (legend) {
+      legend.innerHTML = `
       <span><i class="legend-swatch" style="background:transparent;outline:1px dashed #e8a317"></i>Lagos State</span>
       ${buPolys.map((b) => `<span><i class="legend-swatch" style="background:${b.fill_hex}"></i>${b.bu_name}</span>`).join("")}
-      <span><i class="legend-swatch" style="background:#4db6ff"></i>11 kV feeders</span>
-      <span><i class="legend-swatch" style="background:#f0a020"></i>33 kV feeders</span>
-      <span><i class="legend-swatch" style="background:#4aa3ff"></i>Public DT</span>
-      <span><i class="legend-swatch" style="background:#c8452c"></i>Private DT</span>
-      <span><i class="legend-swatch" style="background:#e8a317"></i>ISS / uploads</span>
-      <span>BU labels ≥ z${LABEL_ZOOM.bu} · UT labels ≥ z${LABEL_ZOOM.ut}</span>
-    `;
+      <span><i class="legend-swatch" style="background:#5ec8ff"></i>11 kV (live)</span>
+      <span><i class="legend-swatch" style="background:#ff7a3d"></i>33 kV (live)</span>
+      <span><i class="legend-swatch" style="background:#3d9cf0;border-radius:50%"></i>Public DT</span>
+      <span><i class="legend-swatch" style="background:#e4572e;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)"></i>Private DT</span>
+      <span><i class="legend-swatch" style="background:#e8a317"></i>ISS</span>
+      <span><i class="legend-swatch" style="background:#fff;outline:2px solid #c8452c"></i>TCN</span>
+      <span>Layers · checklist (top-right) · labels ≥ z${LABEL_ZOOM.bu}/${LABEL_ZOOM.ut}</span>`;
+    }
 
     if (opts.zoom !== false) flyToSelection();
+  }
+
+  function scheduleMapRedraw(opts = {}) {
+    if (state.mapRedrawRaf) cancelAnimationFrame(state.mapRedrawRaf);
+    state.mapRedrawRaf = requestAnimationFrame(() => {
+      state.mapRedrawRaf = 0;
+      redrawMapLayers(opts);
+    });
   }
 
   function renderActiveTabCharts(force) {
@@ -975,14 +1284,19 @@
   }
 
   function refreshAll(opts = {}) {
+    /* Charts + KPIs immediately; map rebuild on next frame so UI stays snappy */
     state.rendered = { overview: false, assets: false, feeders: false };
     renderKPIs();
     renderCompare();
     renderUTTable();
     renderActiveTabCharts(true);
-    redrawMapLayers({ zoom: opts.zoom !== false });
     populateCombos();
     syncComboLabels();
+    if (opts.mapOnly) {
+      scheduleMapRedraw({ zoom: opts.zoom !== false });
+      return;
+    }
+    scheduleMapRedraw({ zoom: opts.zoom !== false });
   }
 
   /* ---------- Multi-select comboboxes ---------- */
@@ -1372,15 +1686,37 @@
     state.uts = [];
     state.feeders = [];
     state.dts = [];
+    state.dtOwn = null;
+    state.installPos = null;
+    state.fidelityBand = null;
+    state.capacityBand = null;
     refreshAll({ zoom: true });
+    setStatus("All filters cleared");
   }
 
-  function setFilters( partial = {}) {
+  function setFilters(partial = {}) {
     if (partial.bus !== undefined) state.bus = Array.isArray(partial.bus) ? partial.bus.slice() : [];
     if (partial.uts !== undefined) state.uts = Array.isArray(partial.uts) ? partial.uts.slice() : [];
     if (partial.feeders !== undefined) state.feeders = Array.isArray(partial.feeders) ? partial.feeders.slice() : [];
     if (partial.dts !== undefined) state.dts = Array.isArray(partial.dts) ? partial.dts.slice() : [];
+    if (partial.dtOwn !== undefined) state.dtOwn = partial.dtOwn;
+    if (partial.installPos !== undefined) state.installPos = partial.installPos;
+    if (partial.fidelityBand !== undefined) state.fidelityBand = partial.fidelityBand;
+    if (partial.capacityBand !== undefined) state.capacityBand = partial.capacityBand;
     refreshAll({ zoom: partial.zoom !== false });
+  }
+
+  function getFilters() {
+    return {
+      bus: state.bus.slice(),
+      uts: state.uts.slice(),
+      feeders: state.feeders.slice(),
+      dts: state.dts.slice(),
+      dtOwn: state.dtOwn,
+      installPos: state.installPos,
+      fidelityBand: state.fidelityBand,
+      capacityBand: state.capacityBand,
+    };
   }
 
   window.IKEDC = {
@@ -1392,7 +1728,10 @@
     refreshChartTheme,
     resetFilters,
     setFilters,
+    getFilters,
     applyBuFilterFromLabel,
+    feederDisplayName,
+    buDisplayName,
     LABEL_ZOOM,
     resize: () => {
       if (state.map) state.map.invalidateSize();

@@ -102,7 +102,7 @@
             </div>
           </div>
           <div class="combo" data-combo="dt">
-            <span class="combo-label">Distribution transformer</span>
+            <span class="combo-label">Dist. transformer</span>
             <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
               <span class="combo-value">All DTs</span>
               <span class="combo-chevron" aria-hidden="true">▾</span>
@@ -116,22 +116,25 @@
               <ul class="combo-list" role="listbox" aria-multiselectable="true"></ul>
             </div>
           </div>
-        </div>
-        <div class="io-actions">
-          <label class="btn btn-secondary" title="Upload GeoJSON, KML, shapefile ZIP, or CSV">
-            Upload
-            <input id="upload-input" type="file" multiple accept=".geojson,.json,.kml,.kmz,.zip,.shp,.dbf,.prj,.cpg,.gpkg,.gdb,.csv,application/zip" hidden />
-          </label>
-          <div class="export-wrap">
-            <button type="button" class="btn btn-primary" id="export-btn">Export</button>
-            <div class="export-menu" id="export-menu" hidden>
-              <button type="button" data-export="csv-uts">Undertakings CSV</button>
-              <button type="button" data-export="csv-bus">Business Units CSV</button>
-              <button type="button" data-export="csv-feeders">Feeders CSV</button>
-              <button type="button" data-export="csv-dts">DTs CSV</button>
-              <button type="button" data-export="xlsx">Excel workbook</button>
-              <button type="button" data-export="kml">Filtered map KML</button>
-              <button type="button" data-export="geojson">Filtered GeoJSON</button>
+          <div class="io-actions filter-io">
+            <span class="combo-label" aria-hidden="true">&nbsp;</span>
+            <div class="io-actions-row">
+              <label class="btn btn-secondary" title="Upload GeoJSON, KML, shapefile ZIP, or CSV">
+                Upload
+                <input id="upload-input" type="file" multiple accept=".geojson,.json,.kml,.kmz,.zip,.shp,.dbf,.prj,.cpg,.gpkg,.gdb,.csv,application/zip" hidden />
+              </label>
+              <div class="export-wrap">
+                <button type="button" class="btn btn-primary" id="export-btn">Export</button>
+                <div class="export-menu" id="export-menu" hidden>
+                  <button type="button" data-export="csv-uts">Undertakings CSV</button>
+                  <button type="button" data-export="csv-bus">Business Units CSV</button>
+                  <button type="button" data-export="csv-feeders">Feeders CSV</button>
+                  <button type="button" data-export="csv-dts">DTs CSV</button>
+                  <button type="button" data-export="xlsx">Excel workbook</button>
+                  <button type="button" data-export="kml">Filtered map KML</button>
+                  <button type="button" data-export="geojson">Filtered GeoJSON</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -380,7 +383,7 @@
             <h2>Top feeders in focus</h2>
             <p>Click a feeder to highlight it on the map</p>
           </div>
-          <ul class="cov-feeder-list" id="cov-feeder-list"></ul>
+          <div class="cov-feeder-list" id="cov-feeder-list"></div>
         </div>
       </section>
 
@@ -450,15 +453,26 @@
         and customer operations share one spatial truth. Every figure below is computed from the same DT register
         and polygon layers that power the live Intelligence and Coverage dashboards — no invented metrics.
       </p>
+      <p>
+        Read this chapter as an executive briefing: the franchise footprint, the asset base, and the MV corridors that
+        bind them. The map and charts are interactive — click a Business Unit slice or bar to push the same filter into
+        Intelligence and Coverage.
+      </p>
+      <ul class="story-insight-list">
+        <li><strong>Context</strong> — One franchise map, one register, one feeder network view for Ikeja Electric 2026.</li>
+        <li><strong>What changed</strong> — Six BUs became five; Undertakings consolidated from 54 to 38 with auditable lineage.</li>
+        <li><strong>How to interpret</strong> — DT totals and feeder counts are register-backed; agreement scores measure spatial fit.</li>
+        <li><strong>Insight</strong> — Ikeja and Akowonjo absorb the heaviest urban load; Ikorodu dominates territory by area.</li>
+      </ul>
       <div class="story-stats" id="story-stats"></div>
       <div class="story-split-charts" style="margin-top:1.1rem">
         <div class="chart-box h-260"><canvas id="story-chart-glance-bu"></canvas></div>
         <div class="chart-box h-260"><canvas id="story-chart-glance-feeders"></canvas></div>
       </div>
       <div class="story-cards" style="margin-top:1rem">
-        <article><h3>One franchise map</h3><p>Lagos State context, five 2026 BU fills, and Undertaking outlines on hybrid satellite imagery.</p></article>
-        <article><h3>One asset register</h3><p>20,789 distribution transformers tagged to 2026 BU / UT with public vs private ownership.</p></article>
-        <article><h3>One MV network view</h3><p>418 feeders (11 kV + 33 kV) aligned to the new territories with length and DT load metrics.</p></article>
+        <article><h3>One franchise map</h3><p>Lagos State context, five 2026 BU fills, Undertakings, feeders, DTs, ISS and TCN on hybrid satellite — toggle layers from the map control.</p></article>
+        <article><h3>One asset register</h3><p>20,789 distribution transformers tagged to 2026 BU / UT with public vs private ownership symbology.</p></article>
+        <article><h3>One MV network view</h3><p>418 feeders (11 kV cool-blue / 33 kV warm-orange) animated as a live corridor layer with length and DT load metrics.</p></article>
       </div>
       <div id="story-map-glance" class="story-map-panel" aria-label="Franchise overview map"></div>
     </section>
@@ -470,6 +484,12 @@
         absorbed its service areas into neighbouring BUs (chiefly Ikeja and Akowonjo), and consolidated Oshodi and Shomolu
         from 11 Undertakings each down to 6 — producing five contiguous 2026 territories and 38 Undertakings.
       </p>
+      <ul class="story-insight-list">
+        <li><strong>Context</strong> — Legacy six-BU geography created overlapping operational hand-offs at Abule Egba’s edges.</li>
+        <li><strong>What changed</strong> — 2,717 transformers changed Business Unit; UT history fields preserve pre-2026 ancestry.</li>
+        <li><strong>How to interpret</strong> — Bars compare structure counts, not customer accounts; focus on organisational geometry.</li>
+        <li><strong>Insight</strong> — Consolidation reduced UT count while Ikeja grew capacity (8 → 10 UTs) as the urban core.</li>
+      </ul>
       <div class="story-media-strip">
         <div id="story-map" class="story-map-mini"></div>
         <div class="chart-box h-280"><canvas id="story-chart-compare"></canvas></div>
@@ -489,6 +509,12 @@
         Each 2026 Business Unit has a distinct spatial personality — dense urban cores, wide coastal territories,
         and mixed ownership profiles. Open a card to filter dashboards to that BU; labels appear on the map as you zoom.
       </p>
+      <ul class="story-insight-list">
+        <li><strong>Ikeja / Akowonjo</strong> — Largest DT bases and ten Undertakings each; primary urban workload.</li>
+        <li><strong>Ikorodu</strong> — Widest territory (~two-thirds of franchise area); distance drives feeder design.</li>
+        <li><strong>Oshodi</strong> — Consolidated UT set with near-even public/private transformer mix.</li>
+        <li><strong>Shomolu</strong> — Densest BU by transformers per km²; short travel between assets.</li>
+      </ul>
       <div class="story-bu-grid" id="story-bu-cards"></div>
       <div class="story-split-charts" style="margin-top:1.1rem">
         <div class="chart-box h-260"><canvas id="story-chart-bus-area"></canvas></div>
@@ -502,6 +528,12 @@
         Workload is read from the operational DT register: public vs private counts, transformers per square kilometre,
         and feeder corridors that carry that load. Click any bar or table row to focus the map and KPI filters.
       </p>
+      <ul class="story-insight-list">
+        <li><strong>Context</strong> — Public vs private ownership shapes field response and customer-side coordination.</li>
+        <li><strong>What the chart shows</strong> — Stacked DT load by BU, density (DTs/km²), and ownership split.</li>
+        <li><strong>How to interpret</strong> — High density implies compact urban ops; high area with lower density implies longer corridors.</li>
+        <li><strong>Insight</strong> — Use the table to jump straight into Intelligence filters for the heaviest Undertakings.</li>
+      </ul>
       <div class="chart-box h-280 story-chart"><canvas id="story-chart-bu"></canvas></div>
       <div class="story-split-charts">
         <div class="chart-box h-240"><canvas id="story-chart-density"></canvas></div>
