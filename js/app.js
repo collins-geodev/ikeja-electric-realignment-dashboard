@@ -235,6 +235,39 @@
     window.__ikedcValueLabels = true;
   }
 
+  function applyBuFilterFromLabel(label) {
+    if (!label || !state.data) return false;
+    const text = String(label);
+    const buNames = state.data.business_units.map((b) => b.bu_name);
+    const utHit = state.data.undertakings.find((u) => u.ut_name === text);
+    if (utHit) {
+      if (state.uts.length === 1 && state.uts[0] === utHit.ut_name) {
+        state.uts = [];
+        state.bus = [];
+      } else {
+        state.uts = [utHit.ut_name];
+        state.bus = [utHit.bu_name];
+      }
+      state.feeders = [];
+      state.dts = [];
+      refreshAll({ zoom: true });
+      return true;
+    }
+    const hit = buNames.find((n) => n === text || text.toUpperCase() === n);
+    if (!hit) return false;
+    if (state.bus.length === 1 && state.bus[0] === hit) {
+      state.bus = [];
+      state.uts = [];
+    } else {
+      state.bus = [hit];
+      state.uts = [];
+    }
+    state.feeders = [];
+    state.dts = [];
+    refreshAll({ zoom: true });
+    return true;
+  }
+
   function barChart(key, canvasId, labels, datasets, opts = {}) {
     destroyChart(key);
     const ctx = document.getElementById(canvasId);
@@ -247,6 +280,12 @@
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
+        onClick: (evt, elems) => {
+          if (opts.onClick) return opts.onClick(evt, elems, state.charts[key]);
+          if (!elems.length) return;
+          const label = labels[elems[0].index];
+          if (opts.filterBu !== false) applyBuFilterFromLabel(label);
+        },
         layout: { padding: { top: showLabels && !opts.stacked ? 20 : 8, right: 4, left: 4 } },
         plugins: {
           legend: { display: opts.legend !== false, position: "bottom", labels: { boxWidth: 12 } },
@@ -266,7 +305,7 @@
     });
   }
 
-  function doughnut(key, canvasId, labels, values, colors) {
+  function doughnut(key, canvasId, labels, values, colors, opts = {}) {
     destroyChart(key);
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
@@ -277,6 +316,11 @@
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
+        onClick: (evt, elems) => {
+          if (opts.onClick) return opts.onClick(evt, elems, state.charts[key]);
+          if (!elems.length) return;
+          applyBuFilterFromLabel(labels[elems[0].index]);
+        },
         plugins: {
           legend: { position: "bottom", labels: { color: chartTheme().text, boxWidth: 10 } },
           valueLabels: { display: true, decimals: 0, fontSize: 12 },
@@ -440,7 +484,7 @@
 
     tbody.innerHTML = rows
       .map(
-        (f) => `<tr>
+        (f) => `<tr data-feeder="${encodeURIComponent(f.name)}" data-bu="${f.bu.split(",")[0].trim()}" class="${state.feeders.includes(f.name) ? "active" : ""}">
         <td title="${f.name}">${f.name.length > 48 ? f.name.slice(0, 48) + "…" : f.name}</td>
         <td>${String(f.voltage).replace("kV", "")}</td>
         <td>${f.bu}</td>
@@ -452,6 +496,20 @@
       </tr>`
       )
       .join("");
+    tbody.querySelectorAll("tr[data-feeder]").forEach((tr) => {
+      tr.addEventListener("click", () => {
+        const name = decodeURIComponent(tr.dataset.feeder || "");
+        const bu = tr.dataset.bu;
+        if (state.feeders.length === 1 && state.feeders[0] === name) {
+          state.feeders = [];
+        } else {
+          state.feeders = [name];
+          if (bu && bu !== "—") state.bus = [bu];
+        }
+        state.dts = [];
+        refreshAll({ zoom: true });
+      });
+    });
   }
 
   function countsFor(field) {
@@ -533,9 +591,9 @@
     ], { legend: false, valueLabels: true, labelDecimals: 1 });
 
     const own = countsFor("ownership").slice(0, 6);
-    doughnut("own", "chart-ownership", own.map((d) => d.name), own.map((d) => d.count), ["#1f6fb2", "#c8452c", "#6b7c90"]);
+    doughnut("own", "chart-ownership", own.map((d) => d.name), own.map((d) => d.count), ["#1f6fb2", "#c8452c", "#6b7c90"], { onClick: () => {} });
     const install = countsFor("install_pos").slice(0, 6);
-    doughnut("install", "chart-install", install.map((d) => d.name), install.map((d) => d.count), ["#2e8b57", "#d99a1e", "#7a4fb5", "#6b7c90"]);
+    doughnut("install", "chart-install", install.map((d) => d.name), install.map((d) => d.count), ["#2e8b57", "#d99a1e", "#7a4fb5", "#6b7c90"], { onClick: () => {} });
 
     let re = state.data.dt_analytics.reassignments || [];
     if (!empty(state.bus)) re = re.filter((r) => state.bus.some((b) => r.name.includes(b)));
@@ -545,6 +603,7 @@
     ], {
       legend: false,
       labelDecimals: 0,
+      filterBu: false,
       scales: {
         x: { ticks: { maxRotation: 45, minRotation: 30, font: { size: 9 } }, grid: { display: false } },
         y: { beginAtZero: true, ticks: { callback: (v) => fmt.format(v) } },
@@ -557,7 +616,7 @@
       .sort((a, b) => binsOrder.indexOf(a.name) - binsOrder.indexOf(b.name));
     barChart("cap", "chart-capacity", bins.map((b) => b.name), [
       { label: "DTs", data: bins.map((b) => b.count), backgroundColor: "#d99a1e", borderRadius: 6 },
-    ], { legend: false, labelDecimals: 0 });
+    ], { legend: false, labelDecimals: 0, filterBu: false });
 
     state.rendered.assets = true;
   }
@@ -614,7 +673,7 @@
     ];
     barChart("fid", "chart-fidelity", buckets.map((b) => b.name), [
       { label: "Feeders", data: buckets.map((b) => b.count), backgroundColor: ["#2e8b57", "#d99a1e", "#c8452c", "#6b7c90"], borderRadius: 6 },
-    ], { legend: false, labelDecimals: 0 });
+    ], { legend: false, labelDecimals: 0, filterBu: false });
 
     renderFeederTable();
     state.rendered.feeders = true;
@@ -624,10 +683,13 @@
     return rings.map((ring) => ring.map(([lon, lat]) => [lat, lon]));
   }
 
+  const LABEL_ZOOM = { bu: 9, ut: 11 };
+
   function labelIcon(text, kind, color) {
+    const size = kind === "bu" ? 12 : 10;
     return L.divIcon({
-      className: "",
-      html: `<div style="transform:translate(-50%,-50%);padding:2px 7px;border-radius:999px;font:600 ${kind === "bu" ? "11px" : "10px"} Sora,sans-serif;color:#fff;background:${color || "#334"};border:1px solid rgba(255,255,255,.25);white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.35)">${text}</div>`,
+      className: kind === "bu" ? "map-label-bu" : "map-label-ut",
+      html: `<div style="transform:translate(-50%,-50%);padding:${kind === "bu" ? "3px 9px" : "2px 6px"};border-radius:999px;font:700 ${size}px Sora,sans-serif;color:#fff;background:${color || "#334"};border:1px solid rgba(255,255,255,.35);white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,.45);letter-spacing:0.02em">${text}</div>`,
       iconSize: [0, 0],
     });
   }
@@ -636,11 +698,11 @@
     if (!state.map) return;
     const z = state.map.getZoom();
     if (state.layers.buLabels) {
-      if (z >= 10) state.map.addLayer(state.layers.buLabels);
+      if (z >= LABEL_ZOOM.bu) state.map.addLayer(state.layers.buLabels);
       else state.map.removeLayer(state.layers.buLabels);
     }
     if (state.layers.utLabels) {
-      if (z >= 12) state.map.addLayer(state.layers.utLabels);
+      if (z >= LABEL_ZOOM.ut) state.map.addLayer(state.layers.utLabels);
       else state.map.removeLayer(state.layers.utLabels);
     }
   }
@@ -892,7 +954,7 @@
       <span><i class="legend-swatch" style="background:#4aa3ff"></i>Public DT</span>
       <span><i class="legend-swatch" style="background:#c8452c"></i>Private DT</span>
       <span><i class="legend-swatch" style="background:#e8a317"></i>ISS / uploads</span>
-      <span>BU labels ≥ z10 · UT labels ≥ z12</span>
+      <span>BU labels ≥ z${LABEL_ZOOM.bu} · UT labels ≥ z${LABEL_ZOOM.ut}</span>
     `;
 
     if (opts.zoom !== false) flyToSelection();
@@ -1313,13 +1375,25 @@
     refreshAll({ zoom: true });
   }
 
+  function setFilters( partial = {}) {
+    if (partial.bus !== undefined) state.bus = Array.isArray(partial.bus) ? partial.bus.slice() : [];
+    if (partial.uts !== undefined) state.uts = Array.isArray(partial.uts) ? partial.uts.slice() : [];
+    if (partial.feeders !== undefined) state.feeders = Array.isArray(partial.feeders) ? partial.feeders.slice() : [];
+    if (partial.dts !== undefined) state.dts = Array.isArray(partial.dts) ? partial.dts.slice() : [];
+    refreshAll({ zoom: partial.zoom !== false });
+  }
+
   window.IKEDC = {
     getData: () => state.data,
     getFeedersGeo: () => state.feedersGeo,
+    getLabels: () => state.labels,
     setLagos: (fc) => { state.lagos = fc; if (state.map) redrawMapLayers(); },
     setMapTheme,
     refreshChartTheme,
     resetFilters,
+    setFilters,
+    applyBuFilterFromLabel,
+    LABEL_ZOOM,
     resize: () => {
       if (state.map) state.map.invalidateSize();
       resizeVisibleCharts();

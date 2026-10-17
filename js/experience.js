@@ -12,14 +12,18 @@
     nodes: null,
     starsRaf: 0,
     coverageMap: null,
-    coverageLayers: { bus: null, feeders: null, highlight: null },
+    coverageLayers: { bus: null, feeders: null, highlight: null, buLabels: null, utLabels: null },
+    labels: null,
     coverageCharts: {},
     coverageFocusBu: null,
     coverageFocusFeeder: null,
     lagos: null,
     storyMap: null,
+    storyMaps: {},
     storyCharts: {},
     storyObserver: null,
+    storyTab: "glance",
+    storyWired: false,
   };
 
   const ESRI = {
@@ -49,12 +53,22 @@
   }
 
   /* ---------- Theme ---------- */
+  function syncBrandLogos(theme) {
+    const src = theme === "light"
+      ? "assets/ikeja-electric-logo-light.png"
+      : "assets/ikeja-electric-logo.png";
+    $$("img.brand-logo, .chrome-brand-trio img[data-brand='ie']").forEach((img) => {
+      if (img.getAttribute("src") !== src) img.setAttribute("src", src);
+    });
+  }
+
   function applyTheme(theme) {
     experience.theme = theme;
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("ikedc-theme", theme);
     const btn = $("#btn-theme");
     if (btn) btn.textContent = theme === "dark" ? "Light mode" : "Dark mode";
+    syncBrandLogos(theme);
     window.IKEDC?.setMapTheme?.(theme);
     window.IKEDC?.refreshChartTheme?.();
     Object.values(experience.coverageCharts).forEach((c) => {
@@ -367,9 +381,34 @@
     });
   }
 
+  function mapLabelIcon(text, kind, color) {
+    const size = kind === "bu" ? 12 : 10;
+    return L.divIcon({
+      className: kind === "bu" ? "map-label-bu" : "map-label-ut",
+      html: `<div style="transform:translate(-50%,-50%);padding:${kind === "bu" ? "3px 9px" : "2px 6px"};border-radius:999px;font:700 ${size}px Sora,sans-serif;color:#fff;background:${color || "#334"};border:1px solid rgba(255,255,255,.35);white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,.45)">${text}</div>`,
+      iconSize: [0, 0],
+    });
+  }
+
+  function updateCoverageLabelVisibility() {
+    const map = experience.coverageMap;
+    if (!map) return;
+    const z = map.getZoom();
+    const buMin = window.IKEDC?.LABEL_ZOOM?.bu ?? 9;
+    const utMin = window.IKEDC?.LABEL_ZOOM?.ut ?? 11;
+    if (experience.coverageLayers.buLabels) {
+      if (z >= buMin) map.addLayer(experience.coverageLayers.buLabels);
+      else map.removeLayer(experience.coverageLayers.buLabels);
+    }
+    if (experience.coverageLayers.utLabels) {
+      if (z >= utMin) map.addLayer(experience.coverageLayers.utLabels);
+      else map.removeLayer(experience.coverageLayers.utLabels);
+    }
+  }
+
   function redrawCoverageLayers(data) {
     if (!experience.coverageMap) return;
-    ["bus", "feeders", "highlight", "lagos"].forEach((k) => {
+    ["bus", "feeders", "highlight", "lagos", "buLabels", "utLabels"].forEach((k) => {
       if (experience.coverageLayers[k]) {
         experience.coverageMap.removeLayer(experience.coverageLayers[k]);
         experience.coverageLayers[k] = null;
@@ -430,6 +469,25 @@
       });
     }
     experience.coverageLayers.feeders = feederGroup.addTo(experience.coverageMap);
+
+    const labels = experience.labels || window.IKEDC?.getLabels?.() || { bu: [], ut: [] };
+    const buLab = L.layerGroup();
+    (labels.bu || []).forEach((lab) => {
+      if (experience.coverageFocusBu && lab.name !== experience.coverageFocusBu) return;
+      L.marker([lab.lat, lab.lon], { icon: mapLabelIcon(lab.name, "bu", lab.fill), interactive: false }).addTo(buLab);
+    });
+    experience.coverageLayers.buLabels = buLab;
+
+    const utLab = L.layerGroup();
+    (labels.ut || []).forEach((lab) => {
+      if (experience.coverageFocusBu && lab.bu !== experience.coverageFocusBu) return;
+      L.marker([lab.lat, lab.lon], { icon: mapLabelIcon(lab.name, "ut", lab.fill), interactive: false }).addTo(utLab);
+    });
+    experience.coverageLayers.utLabels = utLab;
+
+    experience.coverageMap.off("zoomend", updateCoverageLabelVisibility);
+    experience.coverageMap.on("zoomend", updateCoverageLabelVisibility);
+    updateCoverageLabelVisibility();
 
     if (bounds.length) {
       experience.coverageMap.fitBounds(bounds, { padding: [28, 28], maxZoom: 12 });
@@ -557,6 +615,51 @@
     SHOMOLU: "The densest Business Unit — compact territory and short travel between assets.",
   };
 
+  function showStoryTab(tabId, { animate = true } = {}) {
+    const id = tabId || "glance";
+    experience.storyTab = id;
+    $$(".story-nav [data-story-tab]").forEach((btn) => {
+      const on = btn.dataset.storyTab === id;
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    $$(".story-panel").forEach((panel) => {
+      const on = panel.dataset.storyPanel === id;
+      panel.hidden = !on;
+      panel.classList.toggle("active", on);
+      if (on && animate) {
+        panel.classList.remove("story-panel-enter");
+        // restart CSS animation
+        void panel.offsetWidth;
+        panel.classList.add("story-panel-enter");
+      }
+    });
+    requestAnimationFrame(() => {
+      Object.values(experience.storyCharts).forEach((c) => {
+        try { c.resize(); } catch (_) { /* ignore */ }
+      });
+      if (experience.storyMap) {
+        try { experience.storyMap.invalidateSize(); } catch (_) { /* ignore */ }
+      }
+      Object.values(experience.storyMaps).forEach((m) => {
+        try { m.invalidateSize(); } catch (_) { /* ignore */ }
+      });
+      if (id === "feeds") window.IKEDCFeeds?.mount?.("story-feed", { limit: 14 });
+      if (id === "before" || id === "glance" || id === "quality") {
+        const data = window.IKEDC?.getData?.();
+        if (data) ensureStoryMaps(data);
+      }
+    });
+  }
+
+  function wireStoryTabs() {
+    if (experience.storyWired) return;
+    experience.storyWired = true;
+    $$(".story-nav [data-story-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => showStoryTab(btn.dataset.storyTab, { animate: true }));
+    });
+  }
+
   function initStory() {
     const data = window.IKEDC?.getData?.();
     if (!data || !window.Chart) return;
@@ -573,39 +676,92 @@
     const cards = $("#story-bu-cards");
     if (cards) {
       cards.innerHTML = data.business_units.map((b) => `
-        <article class="story-bu-card" style="--bu-color:${b.fill_hex}">
+        <button type="button" class="story-bu-card" style="--bu-color:${b.fill_hex}" data-bu="${b.bu_name}">
           <h3>${b.bu_name}</h3>
           <p>${BU_BLURBS[b.bu_name] || `${b.ut_count} UTs · ${fmt.format(b.dt_total)} DTs · ${b.area_km2.toFixed(0)} km²`}</p>
           <p style="margin-top:0.45rem"><strong>${fmt.format(b.dt_total)}</strong> DTs · <strong>${(b.dt_total / b.area_km2).toFixed(1)}</strong> / km²</p>
-        </article>`).join("");
+        </button>`).join("");
+      cards.querySelectorAll("[data-bu]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          window.IKEDC?.setFilters?.({ bus: [btn.dataset.bu], uts: [], feeders: [], dts: [] });
+          setCoverageFocus(btn.dataset.bu);
+        });
+      });
     }
 
-    initStoryMap(data);
+    wireStoryTabs();
     initStoryCharts(data);
-    observeStorySections();
+    showStoryTab(experience.storyTab || "glance", { animate: true });
   }
 
-  function initStoryMap(data) {
-    const el = $("#story-map");
-    if (!el || !window.L) return;
-    if (experience.storyMap) {
-      experience.storyMap.remove();
+  function paintStoryMap(el, data, key) {
+    if (!el || !window.L) return null;
+    if (experience.storyMaps[key]?._container === el) {
+      setTimeout(() => experience.storyMaps[key].invalidateSize(), 60);
+      return experience.storyMaps[key];
+    }
+    if (experience.storyMaps[key]) {
+      try { experience.storyMaps[key].remove(); } catch (_) { /* ignore */ }
+      experience.storyMaps[key] = null;
+    }
+    if (key === "before" && experience.storyMap && experience.storyMap !== experience.storyMaps.before) {
+      try { experience.storyMap.remove(); } catch (_) { /* ignore */ }
       experience.storyMap = null;
     }
-    experience.storyMap = L.map(el, { zoomControl: false, attributionControl: false }).setView([6.55, 3.5], 10);
-    hybridBasemapGroup().addTo(experience.storyMap);
+    const map = L.map(el, { zoomControl: true, attributionControl: false }).setView([6.55, 3.5], 10);
+    hybridBasemapGroup().addTo(map);
     const bounds = [];
     data.map.bu_polygons.forEach((b) => {
       b.rings.forEach((ring) => {
         const latlngs = ring.map(([lon, lat]) => [lat, lon]);
         L.polygon(latlngs, {
           color: b.fill_hex, weight: 2, fillColor: b.fill_hex, fillOpacity: 0.35,
-        }).bindTooltip(b.bu_name).addTo(experience.storyMap);
+        })
+          .bindTooltip(b.bu_name)
+          .on("click", () => {
+            window.IKEDC?.setFilters?.({ bus: [b.bu_name], uts: [], feeders: [], dts: [] });
+          })
+          .addTo(map);
         latlngs.forEach((ll) => bounds.push(ll));
       });
     });
-    if (bounds.length) experience.storyMap.fitBounds(bounds, { padding: [12, 12] });
-    setTimeout(() => experience.storyMap.invalidateSize(), 100);
+    const labels = experience.labels || window.IKEDC?.getLabels?.() || { bu: [], ut: [] };
+    const buLab = L.layerGroup();
+    const utLab = L.layerGroup();
+    (labels.bu || []).forEach((lab) => {
+      L.marker([lab.lat, lab.lon], { icon: mapLabelIcon(lab.name, "bu", lab.fill), interactive: false }).addTo(buLab);
+    });
+    (labels.ut || []).forEach((lab) => {
+      L.marker([lab.lat, lab.lon], { icon: mapLabelIcon(lab.name, "ut", lab.fill), interactive: false }).addTo(utLab);
+    });
+    const sync = () => {
+      const z = map.getZoom();
+      const buMin = window.IKEDC?.LABEL_ZOOM?.bu ?? 9;
+      const utMin = window.IKEDC?.LABEL_ZOOM?.ut ?? 11;
+      if (z >= buMin) map.addLayer(buLab); else map.removeLayer(buLab);
+      if (z >= utMin) map.addLayer(utLab); else map.removeLayer(utLab);
+    };
+    map.on("zoomend", sync);
+    sync();
+    if (bounds.length) map.fitBounds(bounds, { padding: [12, 12] });
+    setTimeout(() => map.invalidateSize(), 80);
+    experience.storyMaps[key] = map;
+    if (key === "before") experience.storyMap = map;
+    return map;
+  }
+
+  function ensureStoryMaps(data) {
+    if (!data) return;
+    if (experience.storyTab === "glance") {
+      const glance = $("#story-map-glance");
+      if (glance) paintStoryMap(glance, data, "glance");
+    } else if (experience.storyTab === "before") {
+      const before = $("#story-map");
+      if (before) paintStoryMap(before, data, "before");
+    } else if (experience.storyTab === "quality") {
+      const quality = $("#story-map-quality");
+      if (quality) paintStoryMap(quality, data, "quality");
+    }
   }
 
   function destroyStoryCharts() {
@@ -626,6 +782,234 @@
       experience.storyCharts[id] = new Chart(el, cfg);
     };
 
+    const storyFilterBu = (buName) => {
+      if (!buName) return;
+      window.IKEDC?.setFilters?.({ bus: [buName], uts: [], feeders: [], dts: [] });
+      setCoverageFocus(buName);
+    };
+
+    const byBuAgree = bus.map((b) => {
+      const uts = data.undertakings.filter((u) => u.bu_name === b.bu_name);
+      return uts.length ? +(uts.reduce((s, u) => s + u.agreement_pct, 0) / uts.length).toFixed(1) : 0;
+    });
+
+    mk("story-chart-glance-bu", {
+      type: "doughnut",
+      data: {
+        labels: bus.map((b) => b.bu_name),
+        datasets: [{
+          data: bus.map((b) => b.dt_total),
+          backgroundColor: bus.map((b) => b.fill_hex),
+          borderWidth: 2,
+          borderColor: t.light ? "#ffffff" : "#0b1017",
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        onClick: (_e, elems) => {
+          if (!elems.length) return;
+          storyFilterBu(bus[elems[0].index]?.bu_name);
+        },
+        plugins: {
+          legend: { position: "bottom", labels: { color: t.text, boxWidth: 10 } },
+          valueLabels: { display: true, decimals: 0, fontSize: 11 },
+        },
+        cutout: "52%",
+      },
+    });
+
+    mk("story-chart-glance-feeders", {
+      type: "bar",
+      data: {
+        labels: (data.feeders_by_bu || []).map((r) => r.bu_name),
+        datasets: [
+          { label: "Feeders", data: (data.feeders_by_bu || []).map((r) => r.feeder_count), backgroundColor: "#1f6fb2", borderRadius: 6 },
+          { label: "Length km", data: (data.feeders_by_bu || []).map((r) => Math.round(r.len_km)), backgroundColor: "#d99a1e", borderRadius: 6 },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 16 } },
+        onClick: (_e, elems) => {
+          if (!elems.length) return;
+          storyFilterBu((data.feeders_by_bu || [])[elems[0].index]?.bu_name);
+        },
+        plugins: {
+          legend: { position: "bottom", labels: { color: t.text } },
+          valueLabels: { display: true, decimals: 0, fontSize: 11 },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: t.muted } },
+          y: { beginAtZero: true, ticks: { color: t.muted }, grid: { color: t.border } },
+        },
+      },
+    });
+
+    mk("story-chart-before-move", {
+      type: "bar",
+      data: {
+        labels: ["DTs moved BU", "UTs consolidated", "BUs reduced"],
+        datasets: [{
+          label: "Change",
+          data: [2717, (data.kpis.ut_existing - data.kpis.ut_2026), (data.kpis.bu_existing - data.kpis.bu_2026)],
+          backgroundColor: ["#c8452c", "#d99a1e", "#1f6fb2"],
+          borderRadius: 6,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 16 } },
+        plugins: {
+          legend: { display: false },
+          valueLabels: { display: true, decimals: 0, fontSize: 12 },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: t.muted } },
+          y: { beginAtZero: true, ticks: { color: t.muted }, grid: { color: t.border } },
+        },
+      },
+    });
+
+    mk("story-chart-bus-area", {
+      type: "bar",
+      data: {
+        labels: bus.map((b) => b.bu_name),
+        datasets: [{
+          label: "Area km²",
+          data: bus.map((b) => b.area_km2),
+          backgroundColor: bus.map((b) => b.fill_hex),
+          borderRadius: 6,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 16 } },
+        onClick: (_e, elems) => {
+          if (!elems.length) return;
+          storyFilterBu(bus[elems[0].index]?.bu_name);
+        },
+        plugins: {
+          legend: { display: false },
+          valueLabels: { display: true, decimals: 1, fontSize: 11 },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: t.muted } },
+          y: { beginAtZero: true, ticks: { color: t.muted }, grid: { color: t.border } },
+        },
+      },
+    });
+
+    mk("story-chart-bus-uts", {
+      type: "bar",
+      data: {
+        labels: bus.map((b) => b.bu_name),
+        datasets: [{
+          label: "Undertakings",
+          data: bus.map((b) => b.ut_count),
+          backgroundColor: "#7a4fb5",
+          borderRadius: 6,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 16 } },
+        onClick: (_e, elems) => {
+          if (!elems.length) return;
+          storyFilterBu(bus[elems[0].index]?.bu_name);
+        },
+        plugins: {
+          legend: { display: false },
+          valueLabels: { display: true, decimals: 0, fontSize: 12 },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: t.muted } },
+          y: { beginAtZero: true, ticks: { color: t.muted }, grid: { color: t.border } },
+        },
+      },
+    });
+
+    mk("story-chart-quality-ut", {
+      type: "bar",
+      data: {
+        labels: data.undertakings.slice().sort((a, b) => a.agreement_pct - b.agreement_pct).slice(0, 12).map((u) => u.ut_name),
+        datasets: [{
+          label: "Agreement %",
+          data: data.undertakings.slice().sort((a, b) => a.agreement_pct - b.agreement_pct).slice(0, 12).map((u) => u.agreement_pct),
+          backgroundColor: "#2e8b57",
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 16 } },
+        plugins: {
+          legend: { display: false },
+          valueLabels: { display: true, suffix: "%", decimals: 1, fontSize: 10 },
+        },
+        scales: {
+          x: { ticks: { maxRotation: 50, minRotation: 30, color: t.muted, font: { size: 9 } }, grid: { display: false } },
+          y: { min: 90, max: 100, ticks: { color: t.muted, callback: (v) => `${v}%` }, grid: { color: t.border } },
+        },
+      },
+    });
+
+    mk("story-chart-method-agree", {
+      type: "doughnut",
+      data: {
+        labels: [">=97%", "90–97%"],
+        datasets: [{
+          data: [
+            data.undertakings.filter((u) => u.agreement_pct >= 97).length,
+            data.undertakings.filter((u) => u.agreement_pct < 97).length,
+          ],
+          backgroundColor: ["#2e8b57", "#d99a1e"],
+          borderWidth: 2,
+          borderColor: t.light ? "#ffffff" : "#0b1017",
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "bottom", labels: { color: t.text } },
+          valueLabels: { display: true, decimals: 0, fontSize: 12 },
+        },
+        cutout: "55%",
+      },
+    });
+
+    mk("story-chart-method-move", {
+      type: "bar",
+      data: {
+        labels: bus.map((b) => b.bu_name),
+        datasets: [{
+          label: "Mean agreement %",
+          data: byBuAgree,
+          backgroundColor: bus.map((b) => b.fill_hex),
+          borderRadius: 6,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 16 } },
+        plugins: {
+          legend: { display: false },
+          valueLabels: { display: true, suffix: "%", decimals: 1, fontSize: 11 },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: t.muted } },
+          y: { min: 90, max: 100, ticks: { color: t.muted }, grid: { color: t.border } },
+        },
+      },
+    });
+
     mk("story-chart-bu", {
       type: "bar",
       data: {
@@ -639,6 +1023,10 @@
         responsive: true,
         maintainAspectRatio: false,
         layout: { padding: { top: 18 } },
+        onClick: (_e, elems) => {
+          if (!elems.length) return;
+          storyFilterBu(bus[elems[0].index]?.bu_name);
+        },
         plugins: {
           valueLabels: { display: true, decimals: 0, fontSize: 11 },
           legend: { position: "bottom", labels: { color: t.text } },
@@ -689,6 +1077,10 @@
         responsive: true,
         maintainAspectRatio: false,
         layout: { padding: { top: 18 } },
+        onClick: (_e, elems) => {
+          if (!elems.length) return;
+          storyFilterBu(bus[elems[0].index]?.bu_name);
+        },
         plugins: {
           legend: { display: false },
           valueLabels: { display: true, decimals: 1, fontSize: 11 },
@@ -722,10 +1114,6 @@
       },
     });
 
-    const byBuAgree = bus.map((b) => {
-      const uts = data.undertakings.filter((u) => u.bu_name === b.bu_name);
-      return uts.length ? +(uts.reduce((s, u) => s + u.agreement_pct, 0) / uts.length).toFixed(1) : 0;
-    });
     mk("story-chart-agree", {
       type: "bar",
       data: {
@@ -741,6 +1129,10 @@
         responsive: true,
         maintainAspectRatio: false,
         layout: { padding: { top: 18 } },
+        onClick: (_e, elems) => {
+          if (!elems.length) return;
+          storyFilterBu(bus[elems[0].index]?.bu_name);
+        },
         plugins: {
           legend: { display: false },
           valueLabels: { display: true, suffix: "%", decimals: 1, fontSize: 12 },
@@ -755,32 +1147,17 @@
     const tbody = $("#story-bu-table tbody");
     if (tbody) {
       tbody.innerHTML = bus.map((b) => `
-        <tr>
+        <tr data-bu="${b.bu_name}">
           <td>${b.bu_name}</td>
           <td>${b.ut_count}</td>
           <td>${b.dt_total.toLocaleString()}</td>
           <td>${b.area_km2.toFixed(1)}</td>
           <td>${(b.dt_per_km2 ?? (b.dt_total / b.area_km2)).toFixed(1)}</td>
         </tr>`).join("");
-    }
-  }
-
-  function observeStorySections() {
-    const sections = $$(".story-section.reveal");
-    if (!sections.length) return;
-    if (experience.storyObserver) experience.storyObserver.disconnect();
-    experience.storyObserver = new IntersectionObserver((entries) => {
-      entries.forEach((en) => {
-        if (en.isIntersecting) en.target.classList.add("in-view");
+      tbody.querySelectorAll("tr[data-bu]").forEach((tr) => {
+        tr.addEventListener("click", () => storyFilterBu(tr.dataset.bu));
       });
-      const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-      if (visible?.target?.id) {
-        $$(".story-nav a").forEach((a) => {
-          a.classList.toggle("active", a.getAttribute("href") === `#${visible.target.id}`);
-        });
-      }
-    }, { threshold: 0.35 });
-    sections.forEach((s) => experience.storyObserver.observe(s));
+    }
   }
 
   /* ---------- Exports ---------- */
@@ -885,10 +1262,15 @@
     initStars();
 
     try {
-      const res = await fetch("data/lagos_boundary.geojson");
-      if (res.ok) experience.lagos = await res.json();
+      const [lagosRes, labelRes] = await Promise.all([
+        fetch("data/lagos_boundary.geojson"),
+        fetch("data/map_labels.json"),
+      ]);
+      if (lagosRes.ok) experience.lagos = await lagosRes.json();
+      if (labelRes.ok) experience.labels = await labelRes.json();
       window.IKEDC?.setLagos?.(experience.lagos);
     } catch (_) { /* optional */ }
+    syncBrandLogos(experience.theme);
 
     $$("[data-goto]").forEach((btn) => {
       btn.addEventListener("click", () => showView(btn.dataset.goto));

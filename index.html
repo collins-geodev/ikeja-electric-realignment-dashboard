@@ -22,10 +22,18 @@
       <button type="button" class="btn btn-accent" data-goto="coverage">Coverage dashboard</button>
       <button type="button" class="btn btn-ghost" data-goto="story">Story map</button>
     </div>
-    <div class="chrome-right">
+    <div class="chrome-center" aria-label="Brand strip">
+      <div class="chrome-brand-trio">
+        <img data-brand="ie" src="assets/ikeja-electric-logo.png" alt="Ikeja Electric" width="72" height="28" />
+        <img src="assets/ie-logo.png" alt="" width="36" height="28" />
+        <img src="assets/favicon.png" alt="" width="28" height="22" />
+      </div>
+      <p class="chrome-color-text">IE · GIS Team · Live Network</p>
       <button type="button" class="btn btn-ghost" id="btn-reset">Reset</button>
+    </div>
+    <div class="chrome-right">
       <button type="button" class="btn btn-ghost" id="btn-theme">Light mode</button>
-      <button type="button" class="btn btn-ghost" id="btn-audio" title="Quiet looping instrumental from 3:20">Play instrumental</button>
+      <button type="button" class="btn btn-ghost" id="btn-audio" title="Quiet gapless instrumental loop">Play instrumental</button>
       <button type="button" class="btn btn-secondary" id="btn-export-pdf">Export PDF</button>
       <button type="button" class="btn btn-primary" id="btn-export-dual-xlsx">Excel (both)</button>
     </div>
@@ -145,7 +153,7 @@
       <div class="card-head">
         <div>
           <h2>Live feeds</h2>
-          <p>Ikeja Electric · NERC · LASERC · power &amp; geospatial news · Nairametrics</p>
+          <p>Click a source tab to filter — synced across Intelligence, Coverage, and Story</p>
         </div>
       </div>
       <div id="intel-feed" class="live-feed-host live-feed-host--compact"></div>
@@ -401,7 +409,7 @@
           <div class="card-head">
             <div>
               <h2>Live feeds</h2>
-              <p>Ikeja Electric · NERC · LASERC · News · Nairametrics</p>
+              <p>Click a source tab — filters all dashboard and story feeds</p>
             </div>
           </div>
           <div id="cov-feed" class="live-feed-host"></div>
@@ -430,52 +438,76 @@
       </div>
     </header>
 
-    <nav class="story-nav" aria-label="Story chapters">
-      <a href="#story-glance">At a glance</a>
-      <a href="#story-before">Before → after</a>
-      <a href="#story-bus">Five BUs</a>
-      <a href="#story-workload">Workload</a>
-      <a href="#story-quality">Quality</a>
-      <a href="#story-method">Method</a>
-      <a href="#story-feeds">Live feeds</a>
-      <a href="#story-explore">Explore</a>
+    <nav class="story-nav" aria-label="Story chapters" role="tablist">
+      <button type="button" role="tab" data-story-tab="glance" class="active" aria-selected="true">At a glance</button>
+      <button type="button" role="tab" data-story-tab="before" aria-selected="false">Before → after</button>
+      <button type="button" role="tab" data-story-tab="bus" aria-selected="false">Five BUs</button>
+      <button type="button" role="tab" data-story-tab="workload" aria-selected="false">Workload</button>
+      <button type="button" role="tab" data-story-tab="quality" aria-selected="false">Quality</button>
+      <button type="button" role="tab" data-story-tab="method" aria-selected="false">Method</button>
+      <button type="button" role="tab" data-story-tab="feeds" aria-selected="false">Live feeds</button>
+      <button type="button" role="tab" data-story-tab="explore" aria-selected="false">Explore</button>
     </nav>
 
-    <section class="story-section reveal" id="story-glance">
+    <section class="story-panel active" data-story-panel="glance" role="tabpanel" id="story-glance">
       <h2>The realignment at a glance</h2>
       <p>
-        Clearer territories improve field response, asset accountability, and customer routing.
-        This story uses the same register and polygon data powering the live dashboards — no invented claims.
+        In 2026 Ikeja Electric collapsed six Business Units into five clearer territories so field crews, planners,
+        and customer operations share one spatial truth. Every figure below is computed from the same DT register
+        and polygon layers that power the live Intelligence and Coverage dashboards — no invented metrics.
       </p>
       <div class="story-stats" id="story-stats"></div>
+      <div class="story-split-charts" style="margin-top:1.1rem">
+        <div class="chart-box h-260"><canvas id="story-chart-glance-bu"></canvas></div>
+        <div class="chart-box h-260"><canvas id="story-chart-glance-feeders"></canvas></div>
+      </div>
+      <div class="story-cards" style="margin-top:1rem">
+        <article><h3>One franchise map</h3><p>Lagos State context, five 2026 BU fills, and Undertaking outlines on hybrid satellite imagery.</p></article>
+        <article><h3>One asset register</h3><p>20,789 distribution transformers tagged to 2026 BU / UT with public vs private ownership.</p></article>
+        <article><h3>One MV network view</h3><p>418 feeders (11 kV + 33 kV) aligned to the new territories with length and DT load metrics.</p></article>
+      </div>
+      <div id="story-map-glance" class="story-map-panel" aria-label="Franchise overview map"></div>
     </section>
 
-    <section class="story-section reveal" id="story-before">
+    <section class="story-panel" data-story-panel="before" role="tabpanel" id="story-before" hidden>
       <h2>Before and after</h2>
       <p>
-        Six pre-2026 Business Units became five contiguous 2026 territories.
-        Abule Egba’s transformers moved primarily into Ikeja and Akowonjo; Oshodi and Shomolu each consolidated from 11 Undertakings to 6.
+        Pre-2026 the franchise ran six Business Units and 54 Undertakings. The 2026 realignment dissolved Abule Egba,
+        absorbed its service areas into neighbouring BUs (chiefly Ikeja and Akowonjo), and consolidated Oshodi and Shomolu
+        from 11 Undertakings each down to 6 — producing five contiguous 2026 territories and 38 Undertakings.
       </p>
       <div class="story-media-strip">
         <div id="story-map" class="story-map-mini"></div>
-        <div class="chart-box h-260"><canvas id="story-chart-compare"></canvas></div>
+        <div class="chart-box h-280"><canvas id="story-chart-compare"></canvas></div>
       </div>
       <div class="story-cards" style="margin-top:1rem">
-        <article><h3>2,717 DTs moved BU</h3><p>13.1% of the network changed Business Unit assignment.</p></article>
-        <article><h3>54 → 38 UTs</h3><p>Undertakings consolidated while Ikeja grew from 8 to 10.</p></article>
-        <article><h3>Mean agreement 97.6%</h3><p>Register UT vs 2026 polygon match across the franchise.</p></article>
+        <article><h3>2,717 DTs moved BU</h3><p>13.1% of the network changed Business Unit assignment during the cut-over.</p></article>
+        <article><h3>54 → 38 UTs</h3><p>Undertakings consolidated for operational clarity while Ikeja grew from 8 to 10 UTs.</p></article>
+        <article><h3>6 → 5 Business Units</h3><p>Abule Egba retired; every former polygon lineage remains auditable in the UT history fields.</p></article>
+      </div>
+      <div class="chart-box h-240" style="margin-top:1rem"><canvas id="story-chart-before-move"></canvas></div>
+      <p class="story-footnote">Click a BU on the map or charts to filter the Intelligence dashboard to that territory.</p>
+    </section>
+
+    <section class="story-panel" data-story-panel="bus" role="tabpanel" id="story-bus" hidden>
+      <h2>The five Business Units</h2>
+      <p>
+        Each 2026 Business Unit has a distinct spatial personality — dense urban cores, wide coastal territories,
+        and mixed ownership profiles. Open a card to filter dashboards to that BU; labels appear on the map as you zoom.
+      </p>
+      <div class="story-bu-grid" id="story-bu-cards"></div>
+      <div class="story-split-charts" style="margin-top:1.1rem">
+        <div class="chart-box h-260"><canvas id="story-chart-bus-area"></canvas></div>
+        <div class="chart-box h-260"><canvas id="story-chart-bus-uts"></canvas></div>
       </div>
     </section>
 
-    <section class="story-section reveal" id="story-bus">
-      <h2>The new Business Units</h2>
-      <p>Scroll each chapter of the franchise — density, area, and workload differ sharply.</p>
-      <div class="story-bu-grid" id="story-bu-cards"></div>
-    </section>
-
-    <section class="story-section reveal" id="story-workload">
+    <section class="story-panel" data-story-panel="workload" role="tabpanel" id="story-workload" hidden>
       <h2>Workload across the new BUs</h2>
-      <p>Public and private DT counts, plus density by Business Unit from the operational register.</p>
+      <p>
+        Workload is read from the operational DT register: public vs private counts, transformers per square kilometre,
+        and feeder corridors that carry that load. Click any bar or table row to focus the map and KPI filters.
+      </p>
       <div class="chart-box h-280 story-chart"><canvas id="story-chart-bu"></canvas></div>
       <div class="story-split-charts">
         <div class="chart-box h-240"><canvas id="story-chart-density"></canvas></div>
@@ -491,42 +523,81 @@
       </div>
     </section>
 
-    <section class="story-section reveal" id="story-quality">
+    <section class="story-panel" data-story-panel="quality" role="tabpanel" id="story-quality" hidden>
       <h2>How we know it’s right</h2>
       <p>
-        Each 2026 boundary was checked against the transformer registers.
-        In every Undertaking, more than 90% of transformers inside the boundary carry a matching 2026 assignment; most score above 97%.
+        Quality is measured as register-to-polygon agreement: for each 2026 Undertaking, what share of transformers
+        inside the boundary carry a matching 2026 UT assignment. Every UT clears 90%; most sit above 97%.
+        Hybrid imagery, feeder fidelity, and ownership splits close the loop between map and register.
       </p>
-      <div class="chart-box h-260"><canvas id="story-chart-agree"></canvas></div>
+      <div class="story-media-strip">
+        <div id="story-map-quality" class="story-map-mini"></div>
+        <div class="chart-box h-280"><canvas id="story-chart-agree"></canvas></div>
+      </div>
+      <div class="chart-box h-240" style="margin-top:1rem"><canvas id="story-chart-quality-ut"></canvas></div>
       <div class="story-cards">
-        <article><h3>Spatial truth</h3><p>BU and UT polygons with Lagos State context on hybrid imagery.</p></article>
-        <article><h3>Network truth</h3><p>11 kV and 33 kV corridors with boundary fidelity metrics.</p></article>
-        <article><h3>Asset truth</h3><p>Capacity, ownership, and reassignment analytics from the DT register.</p></article>
+        <article><h3>Spatial truth</h3><p>BU and UT polygons with Lagos State context on Esri hybrid satellite + labels.</p></article>
+        <article><h3>Network truth</h3><p>11 kV and 33 kV corridors scored for in-own-BU / in-own-UT fidelity.</p></article>
+        <article><h3>Asset truth</h3><p>Capacity bins, ownership, and reassignment analytics from the DT register.</p></article>
       </div>
     </section>
 
-    <section class="story-section reveal" id="story-method">
+    <section class="story-panel" data-story-panel="method" role="tabpanel" id="story-method" hidden>
       <h2>How we did it</h2>
       <p>
-        The GIS Team assigned each of the 20,789 transformers a 2026 Undertaking and Business Unit,
-        then redrew the boundaries so every Undertaking records which former Undertakings it was formed from —
-        keeping the history of every boundary auditable. Customer identifiers were excluded from published layers.
+        The GIS Team assigned each of the 20,789 transformers a 2026 Undertaking and Business Unit, then redrew
+        boundaries so every Undertaking records which former Undertakings it was formed from — keeping the history
+        of every boundary auditable. Customer identifiers were excluded from published layers.
       </p>
+      <ol class="story-method-steps">
+        <li><strong>Register tag</strong> — Each DT receives 2026 BU / UT codes aligned to feeder nomenclature.</li>
+        <li><strong>Polygon rebuild</strong> — Undertaking and Business Unit polygons redrawn to match the tagged register.</li>
+        <li><strong>Agreement check</strong> — Spatial join of DTs to polygons; score agreement and resolve outliers.</li>
+        <li><strong>Network overlay</strong> — MV feeders attributed to 2026 BUs with length and DT load.</li>
+        <li><strong>Publish</strong> — Dashboards, story map, and exports share one curated JSON / GeoJSON package.</li>
+      </ol>
+      <div class="story-split-charts">
+        <div class="chart-box h-240"><canvas id="story-chart-method-agree"></canvas></div>
+        <div class="chart-box h-240"><canvas id="story-chart-method-move"></canvas></div>
+      </div>
+      <div class="story-cards" style="margin-top:1rem">
+        <article><h3>Tools</h3><p>QGIS / ArcGIS Pro for geometry · curated JSON for the Vercel dashboard · Leaflet + Chart.js for the story.</p></article>
+        <article><h3>Governance</h3><p>Lineage fields on UTs preserve pre-2026 ancestry for audit and field briefings.</p></article>
+        <article><h3>Privacy</h3><p>No customer account identifiers in published map or analytics layers.</p></article>
+      </div>
     </section>
 
-    <section class="story-section reveal" id="story-feeds">
+    <section class="story-panel" data-story-panel="feeds" role="tabpanel" id="story-feeds" hidden>
       <h2>Live industry pulse</h2>
-      <p>Same live feed pipeline as Coverage and Intelligence — Ikeja Electric, NERC, LASERC, and sector news.</p>
+      <p>
+        Click a source tab to show only that outlet’s updates. The same filter applies to Live feeds on the
+        Intelligence and Coverage dashboards — Ikeja Electric, NERC, LASERC, Nairametrics, and sector news.
+      </p>
       <div id="story-feed" class="live-feed-host"></div>
     </section>
 
-    <section class="story-section story-cta reveal" id="story-explore">
+    <section class="story-panel story-cta" data-story-panel="explore" role="tabpanel" id="story-explore" hidden>
       <h2>Explore the data</h2>
-      <p>Filter by Business Unit or Undertaking on the intelligence dashboard, or open the coverage map with live feeds.</p>
-      <div class="story-cta-row">
-        <button type="button" class="btn btn-accent" data-goto="coverage">Coverage dashboard</button>
-        <button type="button" class="btn btn-primary" data-goto="intelligence">Intelligence dashboard</button>
-        <button type="button" class="btn btn-secondary" id="btn-export-pdf-story">Export PDF report</button>
+      <p>
+        Jump into the interactive dashboards: multi-select BU / UT / feeder / DT filters, hybrid satellite maps,
+        clickable charts and tables, dual Excel export, and PDF snapshots. Reset clears focus across views.
+      </p>
+      <div class="story-explore-grid">
+        <article>
+          <h3>Intelligence</h3>
+          <p>KPIs, network geography, DT register analytics, feeder fidelity, and live feeds.</p>
+          <button type="button" class="btn btn-primary" data-goto="intelligence">Open Intelligence</button>
+        </article>
+        <article>
+          <h3>Coverage</h3>
+          <p>Replica command view with DT density, interactive insight cards, and feeder drill-down.</p>
+          <button type="button" class="btn btn-accent" data-goto="coverage">Open Coverage</button>
+        </article>
+        <article>
+          <h3>Export</h3>
+          <p>PDF report of both dashboards, or Excel workbooks for UTs, BUs, feeders, and DTs.</p>
+          <button type="button" class="btn btn-secondary" id="btn-export-pdf-story">Export PDF report</button>
+        </article>
       </div>
     </section>
   </div>
