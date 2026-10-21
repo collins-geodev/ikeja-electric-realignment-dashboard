@@ -209,7 +209,15 @@ body {
   gap: 0.75rem;
   flex: 0 0 auto;
 }
+.chrome-data[hidden] { display: none !important; }
+.ico-caret {
+  width: 14px;
+  height: 14px;
+  margin-left: -0.1rem;
+  opacity: 0.75;
+}
 .chrome-utils,
+.chrome-data,
 .chrome-exports {
   display: flex;
   align-items: center;
@@ -1927,24 +1935,26 @@ button.kpi .value {
 }
 
 /* ---------- Header breakpoints ---------- */
-/* Very wide screens: room for text on the display buttons */
-@media (min-width: 1800px) {
-  .chrome-utils .btn-icon { padding: 0 0.8rem; }
-  .chrome-utils .btn-label { display: inline; }
-}
-
 /* Laptops: shorter names keep every button on one line */
-@media (max-width: 1499px) {
-  .chrome-views .lbl-full { display: none; }
-  .chrome-views .lbl-short { display: inline; }
-}
-@media (max-width: 1279px) {
+@media (max-width: 1679px) {
+  .chrome-views .lbl-full,
   .chrome-exports .lbl-full { display: none; }
+  .chrome-views .lbl-short,
   .chrome-exports .lbl-short { display: inline; }
+}
+@media (max-width: 1439px) {
+  .chrome-inner,
+  .chrome-actions { gap: 0.6rem; }
+  .view-btn { padding: 0 0.65rem; }
+  .tab { padding: 0 0.75rem; }
+  .chrome-tabs .ico { display: none; }
+  .chrome .btn-icon,
+  .chrome .io-actions .btn { padding: 0 0.7rem; }
+  .chrome-utils .btn-icon { padding: 0 0.55rem; }
 }
 
 /* Tablets: views and sections on the first row, every action on the second */
-@media (max-width: 1199px) {
+@media (max-width: 1279px) {
   .chrome-inner {
     flex-wrap: wrap;
     row-gap: 0.55rem;
@@ -1953,15 +1963,20 @@ button.kpi .value {
   .chrome-actions {
     width: 100%;
     margin-left: 0;
-    justify-content: space-between;
     padding-top: 0.55rem;
     border-top: 1px solid var(--line);
   }
+  .chrome-data,
+  .chrome-exports { margin-left: auto; }
+  .chrome-data:not([hidden]) ~ .chrome-exports { margin-left: 0; }
   .chrome-divider { display: none; }
-  .chrome-utils .btn-icon { padding: 0 0.8rem; }
-  .chrome-utils .btn-label { display: inline; }
+  .chrome-tabs .ico { display: inline-block; }
   .chrome-exports .lbl-full { display: inline; }
   .chrome-exports .lbl-short { display: none; }
+}
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .chrome-utils .btn-icon { padding: 0 0.8rem; }
+  .chrome-utils .btn-label { display: inline; }
 }
 @media (max-width: 899px) {
   .chrome-tabs .ico { display: none; }
@@ -1995,17 +2010,24 @@ button.kpi .value {
     height: 36px;
     padding: 0 0.4rem;
   }
-  .chrome-actions { gap: 0.5rem; }
+  .chrome-actions {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
   .chrome-utils .btn-icon { padding: 0 0.6rem; }
-  .chrome-utils .btn-label { display: none; }
-  .chrome-exports { flex: 1 1 auto; }
+  .chrome-data { flex: 1 1 0; min-width: 0; margin-left: 0; }
+  .chrome-exports { margin-left: 0; }
+  .chrome-data > .btn,
+  .chrome-data > .export-wrap { flex: 1 1 0; }
+  .chrome-data .btn { width: 100%; padding: 0 0.6rem; }
+  .chrome-exports { flex: 1 1 100%; }
   .chrome-exports .btn { flex: 1 1 0; height: 40px; }
-  .chrome-exports .lbl-full { display: none; }
-  .chrome-exports .lbl-short { display: inline; }
+  .chrome-data[hidden] ~ .chrome-exports { flex: 1 1 0; min-width: 0; }
+  .chrome-data[hidden] ~ .chrome-exports .lbl-full { display: none; }
+  .chrome-data[hidden] ~ .chrome-exports .lbl-short { display: inline; }
 
   .filter-panel { padding: 0.7rem 0.7rem 0.8rem; }
   .filter-panel-hint { display: none; }
-  .filter-panel-head .io-actions .btn { height: 36px; padding: 0 0.75rem; }
   .filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.6rem;
@@ -2026,7 +2048,6 @@ button.kpi .value {
   .masthead .brand-logo { height: 42px; }
   .masthead .brand h1 { font-size: 1rem; }
   .eyebrow { font-size: 0.64rem; column-gap: 0.45rem; }
-  .filter-panel-head .io-actions .btn { padding: 0 0.6rem; }
   .compare { grid-template-columns: minmax(0, 1fr); }
   .compare .arrow { transform: rotate(90deg); }
 }

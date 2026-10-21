@@ -95,6 +95,26 @@
           </button>
         </div>
         <span class="chrome-divider" aria-hidden="true"></span>
+        <div class="io-actions chrome-data" id="chrome-intel-data" role="group" aria-label="Data import and export">
+          <label class="btn btn-secondary btn-icon" title="Upload GeoJSON, KML, shapefile ZIP, or CSV">
+            <svg class="ico" aria-hidden="true"><use href="#i-upload"/></svg><span>Upload</span>
+            <input id="upload-input" type="file" multiple accept=".geojson,.json,.kml,.kmz,.zip,.shp,.dbf,.prj,.cpg,.gpkg,.gdb,.csv,application/zip" hidden />
+          </label>
+          <div class="export-wrap">
+            <button type="button" class="btn btn-secondary btn-icon" id="export-btn" aria-haspopup="menu">
+              <svg class="ico" aria-hidden="true"><use href="#i-download"/></svg><span>Export</span><svg class="ico ico-caret" aria-hidden="true"><use href="#i-chevron"/></svg>
+            </button>
+            <div class="export-menu" id="export-menu" hidden>
+              <button type="button" data-export="csv-uts">Undertakings CSV</button>
+              <button type="button" data-export="csv-bus">Business Units CSV</button>
+              <button type="button" data-export="csv-feeders">Feeders CSV</button>
+              <button type="button" data-export="csv-dts">DTs CSV</button>
+              <button type="button" data-export="xlsx">Excel workbook</button>
+              <button type="button" data-export="kml">Filtered map KML</button>
+              <button type="button" data-export="geojson">Filtered GeoJSON</button>
+            </div>
+          </div>
+        </div>
         <div class="chrome-exports" role="group" aria-label="Reports">
           <button type="button" class="btn btn-secondary btn-icon" id="btn-export-pdf" title="Export PDF">
             <svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span class="lbl-full">Export PDF</span><span class="lbl-short">PDF</span>
@@ -115,26 +135,6 @@
           <svg class="ico" aria-hidden="true"><use href="#i-filter"/></svg>
           <h2 id="filter-panel-title">Network filters</h2>
           <span class="filter-panel-hint">Applies to every chart, table and map</span>
-        </div>
-        <div class="io-actions" role="group" aria-label="Data import and export">
-          <label class="btn btn-secondary btn-icon" title="Upload GeoJSON, KML, shapefile ZIP, or CSV">
-            <svg class="ico" aria-hidden="true"><use href="#i-upload"/></svg><span>Upload</span>
-            <input id="upload-input" type="file" multiple accept=".geojson,.json,.kml,.kmz,.zip,.shp,.dbf,.prj,.cpg,.gpkg,.gdb,.csv,application/zip" hidden />
-          </label>
-          <div class="export-wrap">
-            <button type="button" class="btn btn-primary btn-icon" id="export-btn" aria-haspopup="menu">
-              <svg class="ico" aria-hidden="true"><use href="#i-download"/></svg><span>Export</span>
-            </button>
-            <div class="export-menu" id="export-menu" hidden>
-              <button type="button" data-export="csv-uts">Undertakings CSV</button>
-              <button type="button" data-export="csv-bus">Business Units CSV</button>
-              <button type="button" data-export="csv-feeders">Feeders CSV</button>
-              <button type="button" data-export="csv-dts">DTs CSV</button>
-              <button type="button" data-export="xlsx">Excel workbook</button>
-              <button type="button" data-export="kml">Filtered map KML</button>
-              <button type="button" data-export="geojson">Filtered GeoJSON</button>
-            </div>
-          </div>
         </div>
       </div>
       <div class="filters" id="filter-bar" role="group" aria-label="Network filters">

@@ -167,8 +167,10 @@
     $$("[data-goto]").forEach((btn) => {
       btn.classList.toggle("active-view", btn.dataset.goto === view);
     });
-    const intelTabs = $("#chrome-intel-tabs");
-    if (intelTabs) intelTabs.hidden = view !== "intelligence";
+    ["#chrome-intel-tabs", "#chrome-intel-data"].forEach((sel) => {
+      const el = $(sel);
+      if (el) el.hidden = view !== "intelligence";
+    });
     if (view === "coverage") {
       requestAnimationFrame(() => {
         initCoverage();
