@@ -16,122 +16,171 @@
 <body>
   <canvas id="starfield" aria-hidden="true"></canvas>
 
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M12 14l3.5-3.5"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/><circle cx="12" cy="14" r="1.6"/></symbol>
+      <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
+      <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+      <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+      <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11z"/></symbol>
+      <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+      <symbol id="i-mute" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></symbol>
+      <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></symbol>
+      <symbol id="i-sheet" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></symbol>
+      <symbol id="i-building" viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M16 9h2a2 2 0 0 1 2 2v10"/><path d="M8 7h4M8 11h4M8 15h4M2 21h20"/></symbol>
+      <symbol id="i-map" viewBox="0 0 24 24"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></symbol>
+      <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    </defs>
+  </svg>
+
   <div class="chrome">
-    <div class="chrome-left">
-      <button type="button" class="btn btn-ghost active-view" data-goto="intelligence">Intelligence</button>
-      <button type="button" class="btn btn-accent" data-goto="coverage">Coverage dashboard</button>
-      <button type="button" class="btn btn-ghost" data-goto="story">Story map</button>
-    </div>
-    <nav class="chrome-tabs tabs" id="chrome-intel-tabs" role="tablist" aria-label="Intelligence sections">
-      <button class="tab active" data-tab="overview" role="tab" aria-selected="true">At a glance</button>
-      <button class="tab" data-tab="assets" role="tab" aria-selected="false">DT register</button>
-      <button class="tab" data-tab="feeders" role="tab" aria-selected="false">Feeders</button>
+    <nav class="chrome-views" aria-label="Dashboard views">
+      <button type="button" class="view-btn active-view" data-goto="intelligence" title="Operational Dashboard">
+        <svg class="ico" aria-hidden="true"><use href="#i-gauge"/></svg>
+        <span class="lbl-full">Operational Dashboard</span><span class="lbl-short">Operations</span>
+      </button>
+      <button type="button" class="view-btn" data-goto="coverage" title="Dashboard Summary">
+        <svg class="ico" aria-hidden="true"><use href="#i-layout"/></svg>
+        <span class="lbl-full">Dashboard Summary</span><span class="lbl-short">Summary</span>
+      </button>
+      <button type="button" class="view-btn" data-goto="story" title="Story map">
+        <svg class="ico" aria-hidden="true"><use href="#i-book"/></svg>
+        <span>Story map</span>
+      </button>
     </nav>
-    <div class="chrome-right">
-      <button type="button" class="btn btn-ghost" id="btn-reset">Reset</button>
-      <button type="button" class="btn btn-ghost" id="btn-theme">Light mode</button>
-      <button type="button" class="btn btn-ghost" id="btn-audio" title="Quiet gapless instrumental loop">Play instrumental</button>
-      <button type="button" class="btn btn-secondary" id="btn-export-pdf">Export PDF</button>
-      <button type="button" class="btn btn-primary" id="btn-export-dual-xlsx">Excel (both)</button>
+    <nav class="chrome-tabs tabs" id="chrome-intel-tabs" role="tablist" aria-label="Operational Dashboard sections">
+      <button class="tab active" data-tab="overview" role="tab" aria-selected="true"><svg class="ico" aria-hidden="true"><use href="#i-eye"/></svg>At a glance</button>
+      <button class="tab" data-tab="assets" role="tab" aria-selected="false"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg>DT register</button>
+      <button class="tab" data-tab="feeders" role="tab" aria-selected="false"><svg class="ico" aria-hidden="true"><use href="#i-pulse"/></svg>Feeders</button>
+    </nav>
+    <div class="chrome-actions">
+      <div class="chrome-utils" role="group" aria-label="Display options">
+        <button type="button" class="icon-btn" id="btn-reset" title="Reset view" aria-label="Reset view">
+          <svg class="ico" aria-hidden="true"><use href="#i-reset"/></svg><span class="btn-label">Reset</span>
+        </button>
+        <button type="button" class="icon-btn" id="btn-theme" title="Light mode" aria-label="Light mode">
+          <svg class="ico ico-theme-dark" aria-hidden="true"><use href="#i-sun"/></svg>
+          <svg class="ico ico-theme-light" aria-hidden="true"><use href="#i-moon"/></svg>
+          <span class="btn-label">Light mode</span>
+        </button>
+        <button type="button" class="icon-btn" id="btn-audio" title="Play instrumental" aria-label="Play instrumental" aria-pressed="false">
+          <svg class="ico ico-audio-off" aria-hidden="true"><use href="#i-music"/></svg>
+          <svg class="ico ico-audio-on" aria-hidden="true"><use href="#i-mute"/></svg>
+          <span class="btn-label">Play instrumental</span>
+        </button>
+      </div>
+      <span class="chrome-divider" aria-hidden="true"></span>
+      <button type="button" class="btn btn-secondary btn-icon" id="btn-export-pdf" title="Export PDF">
+        <svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span class="lbl-full">Export PDF</span><span class="lbl-short">PDF</span>
+      </button>
+      <button type="button" class="btn btn-primary btn-icon" id="btn-export-dual-xlsx" title="Excel workbook with both dashboards">
+        <svg class="ico" aria-hidden="true"><use href="#i-sheet"/></svg><span class="lbl-full">Excel (both)</span><span class="lbl-short">Excel</span>
+      </button>
     </div>
   </div>
 
   <!-- ========== INTELLIGENCE DASHBOARD ========== -->
   <div class="app app-view" id="view-intelligence" data-view="intelligence">
     <header class="topbar">
-      <div class="brand">
-        <img class="brand-logo" src="assets/ikeja-electric-logo.png" alt="Ikeja Electric" width="140" height="48" />
-        <div>
-          <p class="eyebrow">
-            <span class="eyebrow-static">Ikeja Electric</span>
-            <span class="eyebrow-sep" aria-hidden="true">·</span>
-            <span class="eyebrow-glow">Powered by the GIS Team</span>
-          </p>
-          <h1>IE Network Monitoring Dashboard</h1>
+      <div class="topbar-head">
+        <div class="brand">
+          <img class="brand-logo" src="assets/ikeja-electric-logo.png" alt="Ikeja Electric" width="140" height="48" />
+          <div class="brand-text">
+            <p class="eyebrow">
+              <span class="eyebrow-static">Ikeja Electric</span>
+              <span class="eyebrow-sep" aria-hidden="true">·</span>
+              <span class="eyebrow-glow">Powered by the GIS Team</span>
+            </p>
+            <h1>IE Network Monitoring Dashboard</h1>
+          </div>
+        </div>
+        <div class="io-actions" role="group" aria-label="Data import and export">
+          <label class="btn btn-secondary btn-icon" title="Upload GeoJSON, KML, shapefile ZIP, or CSV">
+            <svg class="ico" aria-hidden="true"><use href="#i-upload"/></svg><span>Upload</span>
+            <input id="upload-input" type="file" multiple accept=".geojson,.json,.kml,.kmz,.zip,.shp,.dbf,.prj,.cpg,.gpkg,.gdb,.csv,application/zip" hidden />
+          </label>
+          <div class="export-wrap">
+            <button type="button" class="btn btn-primary btn-icon" id="export-btn" aria-haspopup="menu">
+              <svg class="ico" aria-hidden="true"><use href="#i-download"/></svg><span>Export</span>
+            </button>
+            <div class="export-menu" id="export-menu" hidden>
+              <button type="button" data-export="csv-uts">Undertakings CSV</button>
+              <button type="button" data-export="csv-bus">Business Units CSV</button>
+              <button type="button" data-export="csv-feeders">Feeders CSV</button>
+              <button type="button" data-export="csv-dts">DTs CSV</button>
+              <button type="button" data-export="xlsx">Excel workbook</button>
+              <button type="button" data-export="kml">Filtered map KML</button>
+              <button type="button" data-export="geojson">Filtered GeoJSON</button>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="toolbar">
-        <div class="filters" id="filter-bar">
-          <div class="combo" data-combo="bu">
-            <span class="combo-label">Business Unit</span>
-            <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
-              <span class="combo-value">All BUs</span>
-              <span class="combo-chevron" aria-hidden="true">▾</span>
-            </button>
-            <div class="combo-panel" hidden>
-              <input type="search" class="combo-search" placeholder="Search business units…" autocomplete="off" />
-              <div class="combo-actions">
-                <button type="button" class="linkish" data-action="select-all">Select all</button>
-                <button type="button" class="linkish" data-action="clear">Clear</button>
-              </div>
-              <ul class="combo-list" role="listbox" aria-multiselectable="true"></ul>
+      <div class="filters" id="filter-bar" role="group" aria-label="Network filters">
+        <div class="combo" data-combo="bu">
+          <span class="combo-label"><svg class="ico" aria-hidden="true"><use href="#i-building"/></svg>Business Unit</span>
+          <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
+            <span class="combo-value">All BUs</span>
+            <svg class="ico combo-chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+          </button>
+          <div class="combo-panel" hidden>
+            <input type="search" class="combo-search" placeholder="Search business units…" autocomplete="off" />
+            <div class="combo-actions">
+              <button type="button" class="linkish" data-action="select-all">Select all</button>
+              <button type="button" class="linkish" data-action="clear">Clear</button>
             </div>
+            <ul class="combo-list" role="listbox" aria-multiselectable="true"></ul>
           </div>
-          <div class="combo" data-combo="ut">
-            <span class="combo-label">Undertaking</span>
-            <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
-              <span class="combo-value">All UTs</span>
-              <span class="combo-chevron" aria-hidden="true">▾</span>
-            </button>
-            <div class="combo-panel" hidden>
-              <input type="search" class="combo-search" placeholder="Search undertakings…" autocomplete="off" />
-              <div class="combo-actions">
-                <button type="button" class="linkish" data-action="select-all">Select all</button>
-                <button type="button" class="linkish" data-action="clear">Clear</button>
-              </div>
-              <ul class="combo-list" role="listbox" aria-multiselectable="true"></ul>
+        </div>
+        <div class="combo" data-combo="ut">
+          <span class="combo-label"><svg class="ico" aria-hidden="true"><use href="#i-map"/></svg>Undertaking</span>
+          <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
+            <span class="combo-value">All UTs</span>
+            <svg class="ico combo-chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+          </button>
+          <div class="combo-panel" hidden>
+            <input type="search" class="combo-search" placeholder="Search undertakings…" autocomplete="off" />
+            <div class="combo-actions">
+              <button type="button" class="linkish" data-action="select-all">Select all</button>
+              <button type="button" class="linkish" data-action="clear">Clear</button>
             </div>
+            <ul class="combo-list" role="listbox" aria-multiselectable="true"></ul>
           </div>
-          <div class="combo" data-combo="feeder">
-            <span class="combo-label">Feeder</span>
-            <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
-              <span class="combo-value">All feeders</span>
-              <span class="combo-chevron" aria-hidden="true">▾</span>
-            </button>
-            <div class="combo-panel" hidden>
-              <input type="search" class="combo-search" placeholder="Search feeders…" autocomplete="off" />
-              <div class="combo-actions">
-                <button type="button" class="linkish" data-action="select-all">Select all</button>
-                <button type="button" class="linkish" data-action="clear">Clear</button>
-              </div>
-              <ul class="combo-list" role="listbox" aria-multiselectable="true"></ul>
+        </div>
+        <div class="combo" data-combo="feeder">
+          <span class="combo-label"><svg class="ico" aria-hidden="true"><use href="#i-pulse"/></svg>Feeder</span>
+          <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
+            <span class="combo-value">All feeders</span>
+            <svg class="ico combo-chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+          </button>
+          <div class="combo-panel" hidden>
+            <input type="search" class="combo-search" placeholder="Search feeders…" autocomplete="off" />
+            <div class="combo-actions">
+              <button type="button" class="linkish" data-action="select-all">Select all</button>
+              <button type="button" class="linkish" data-action="clear">Clear</button>
             </div>
+            <ul class="combo-list" role="listbox" aria-multiselectable="true"></ul>
           </div>
-          <div class="combo" data-combo="dt">
-            <span class="combo-label">Dist. transformer</span>
-            <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
-              <span class="combo-value">All DTs</span>
-              <span class="combo-chevron" aria-hidden="true">▾</span>
-            </button>
-            <div class="combo-panel" hidden>
-              <input type="search" class="combo-search" placeholder="Search DT nomenclature…" autocomplete="off" />
-              <div class="combo-actions">
-                <button type="button" class="linkish" data-action="select-all">Select all</button>
-                <button type="button" class="linkish" data-action="clear">Clear</button>
-              </div>
-              <ul class="combo-list" role="listbox" aria-multiselectable="true"></ul>
+        </div>
+        <div class="combo" data-combo="dt">
+          <span class="combo-label"><svg class="ico" aria-hidden="true"><use href="#i-bolt"/></svg>Dist. transformer</span>
+          <button type="button" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
+            <span class="combo-value">All DTs</span>
+            <svg class="ico combo-chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+          </button>
+          <div class="combo-panel" hidden>
+            <input type="search" class="combo-search" placeholder="Search DT nomenclature…" autocomplete="off" />
+            <div class="combo-actions">
+              <button type="button" class="linkish" data-action="select-all">Select all</button>
+              <button type="button" class="linkish" data-action="clear">Clear</button>
             </div>
-          </div>
-          <div class="io-actions filter-io">
-            <span class="combo-label" aria-hidden="true">&nbsp;</span>
-            <div class="io-actions-row">
-              <label class="btn btn-secondary" title="Upload GeoJSON, KML, shapefile ZIP, or CSV">
-                Upload
-                <input id="upload-input" type="file" multiple accept=".geojson,.json,.kml,.kmz,.zip,.shp,.dbf,.prj,.cpg,.gpkg,.gdb,.csv,application/zip" hidden />
-              </label>
-              <div class="export-wrap">
-                <button type="button" class="btn btn-primary" id="export-btn">Export</button>
-                <div class="export-menu" id="export-menu" hidden>
-                  <button type="button" data-export="csv-uts">Undertakings CSV</button>
-                  <button type="button" data-export="csv-bus">Business Units CSV</button>
-                  <button type="button" data-export="csv-feeders">Feeders CSV</button>
-                  <button type="button" data-export="csv-dts">DTs CSV</button>
-                  <button type="button" data-export="xlsx">Excel workbook</button>
-                  <button type="button" data-export="kml">Filtered map KML</button>
-                  <button type="button" data-export="geojson">Filtered GeoJSON</button>
-                </div>
-              </div>
-            </div>
+            <ul class="combo-list" role="listbox" aria-multiselectable="true"></ul>
           </div>
         </div>
       </div>

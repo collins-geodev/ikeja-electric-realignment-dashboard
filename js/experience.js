@@ -67,12 +67,20 @@
     });
   }
 
+  function setButtonLabel(btn, text) {
+    if (!btn) return;
+    const label = btn.querySelector(".btn-label");
+    if (label) label.textContent = text;
+    else btn.textContent = text;
+    btn.title = text;
+    btn.setAttribute("aria-label", text);
+  }
+
   function applyTheme(theme) {
     experience.theme = theme;
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("ikedc-theme", theme);
-    const btn = $("#btn-theme");
-    if (btn) btn.textContent = theme === "dark" ? "Light mode" : "Dark mode";
+    setButtonLabel($("#btn-theme"), theme === "dark" ? "Light mode" : "Dark mode");
     syncBrandLogos(theme);
     window.IKEDC?.setMapTheme?.(theme);
     window.IKEDC?.refreshChartTheme?.();
@@ -146,7 +154,8 @@
       return;
     }
     const btn = $("#btn-audio");
-    if (btn) btn.textContent = on ? "Mute ambient instrumental" : "Play ambient instrumental";
+    setButtonLabel(btn, on ? "Mute instrumental" : "Play instrumental");
+    btn?.setAttribute("aria-pressed", on ? "true" : "false");
   }
 
   /* ---------- View switching ---------- */

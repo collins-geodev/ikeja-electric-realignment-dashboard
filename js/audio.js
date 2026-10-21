@@ -20,8 +20,12 @@
   function syncButton(playing) {
     const btn = document.getElementById("btn-audio");
     if (!btn) return;
-    btn.textContent = playing ? "Mute instrumental" : "Play instrumental";
-    btn.title = "Quiet gapless instrumental loop (from 3:20)";
+    const text = playing ? "Mute instrumental" : "Play instrumental";
+    const label = btn.querySelector(".btn-label");
+    if (label) label.textContent = text;
+    else btn.textContent = text;
+    btn.title = `${text} · quiet gapless loop`;
+    btn.setAttribute("aria-label", text);
     btn.setAttribute("aria-pressed", playing ? "true" : "false");
   }
 
