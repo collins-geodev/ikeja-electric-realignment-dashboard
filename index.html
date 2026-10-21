@@ -36,70 +36,85 @@
       <symbol id="i-building" viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M16 9h2a2 2 0 0 1 2 2v10"/><path d="M8 7h4M8 11h4M8 15h4M2 21h20"/></symbol>
       <symbol id="i-map" viewBox="0 0 24 24"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></symbol>
       <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+      <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8.5V19l-4 2v-7.5z"/></symbol>
       <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
     </defs>
   </svg>
 
-  <div class="chrome">
-    <nav class="chrome-views" aria-label="Dashboard views">
-      <button type="button" class="view-btn active-view" data-goto="intelligence" title="Operational Dashboard">
-        <svg class="ico" aria-hidden="true"><use href="#i-gauge"/></svg>
-        <span class="lbl-full">Operational Dashboard</span><span class="lbl-short">Operations</span>
-      </button>
-      <button type="button" class="view-btn" data-goto="coverage" title="Dashboard Summary">
-        <svg class="ico" aria-hidden="true"><use href="#i-layout"/></svg>
-        <span class="lbl-full">Dashboard Summary</span><span class="lbl-short">Summary</span>
-      </button>
-      <button type="button" class="view-btn" data-goto="story" title="Story map">
-        <svg class="ico" aria-hidden="true"><use href="#i-book"/></svg>
-        <span>Story map</span>
-      </button>
-    </nav>
-    <nav class="chrome-tabs tabs" id="chrome-intel-tabs" role="tablist" aria-label="Operational Dashboard sections">
-      <button class="tab active" data-tab="overview" role="tab" aria-selected="true"><svg class="ico" aria-hidden="true"><use href="#i-eye"/></svg>At a glance</button>
-      <button class="tab" data-tab="assets" role="tab" aria-selected="false"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg>DT register</button>
-      <button class="tab" data-tab="feeders" role="tab" aria-selected="false"><svg class="ico" aria-hidden="true"><use href="#i-pulse"/></svg>Feeders</button>
-    </nav>
-    <div class="chrome-actions">
-      <div class="chrome-utils" role="group" aria-label="Display options">
-        <button type="button" class="icon-btn" id="btn-reset" title="Reset view" aria-label="Reset view">
-          <svg class="ico" aria-hidden="true"><use href="#i-reset"/></svg><span class="btn-label">Reset</span>
-        </button>
-        <button type="button" class="icon-btn" id="btn-theme" title="Light mode" aria-label="Light mode">
-          <svg class="ico ico-theme-dark" aria-hidden="true"><use href="#i-sun"/></svg>
-          <svg class="ico ico-theme-light" aria-hidden="true"><use href="#i-moon"/></svg>
-          <span class="btn-label">Light mode</span>
-        </button>
-        <button type="button" class="icon-btn" id="btn-audio" title="Play instrumental" aria-label="Play instrumental" aria-pressed="false">
-          <svg class="ico ico-audio-off" aria-hidden="true"><use href="#i-music"/></svg>
-          <svg class="ico ico-audio-on" aria-hidden="true"><use href="#i-mute"/></svg>
-          <span class="btn-label">Play instrumental</span>
-        </button>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <div class="brand">
+        <img class="brand-logo" src="assets/ikeja-electric-logo.png" alt="Ikeja Electric" width="140" height="48" />
+        <div class="brand-text">
+          <p class="eyebrow">
+            <span class="eyebrow-static">Ikeja Electric</span>
+            <span class="eyebrow-sep" aria-hidden="true">·</span>
+            <span class="eyebrow-glow">Powered by the GIS Team</span>
+          </p>
+          <h1>IE Network Monitoring Dashboard</h1>
+        </div>
       </div>
-      <span class="chrome-divider" aria-hidden="true"></span>
-      <button type="button" class="btn btn-secondary btn-icon" id="btn-export-pdf" title="Export PDF">
-        <svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span class="lbl-full">Export PDF</span><span class="lbl-short">PDF</span>
-      </button>
-      <button type="button" class="btn btn-primary btn-icon" id="btn-export-dual-xlsx" title="Excel workbook with both dashboards">
-        <svg class="ico" aria-hidden="true"><use href="#i-sheet"/></svg><span class="lbl-full">Excel (both)</span><span class="lbl-short">Excel</span>
-      </button>
+    </div>
+  </header>
+
+  <div class="chrome">
+    <div class="chrome-inner">
+      <nav class="chrome-views" aria-label="Dashboard views">
+        <button type="button" class="view-btn active-view" data-goto="intelligence">
+          <svg class="ico" aria-hidden="true"><use href="#i-gauge"/></svg>
+          <span class="lbl-full">Operational Dashboard</span><span class="lbl-short">Operations</span>
+        </button>
+        <button type="button" class="view-btn" data-goto="coverage">
+          <svg class="ico" aria-hidden="true"><use href="#i-layout"/></svg>
+          <span class="lbl-full">Dashboard Summary</span><span class="lbl-short">Summary</span>
+        </button>
+        <button type="button" class="view-btn" data-goto="story">
+          <svg class="ico" aria-hidden="true"><use href="#i-book"/></svg>
+          <span>Story map</span>
+        </button>
+      </nav>
+      <nav class="chrome-tabs tabs" id="chrome-intel-tabs" role="tablist" aria-label="Operational Dashboard sections">
+        <button class="tab active" data-tab="overview" role="tab" aria-selected="true"><svg class="ico" aria-hidden="true"><use href="#i-eye"/></svg>At a glance</button>
+        <button class="tab" data-tab="assets" role="tab" aria-selected="false"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg>DT register</button>
+        <button class="tab" data-tab="feeders" role="tab" aria-selected="false"><svg class="ico" aria-hidden="true"><use href="#i-pulse"/></svg>Feeders</button>
+      </nav>
+      <div class="chrome-actions">
+        <div class="chrome-utils" role="group" aria-label="Display options">
+          <button type="button" class="btn btn-ghost btn-icon" id="btn-reset" title="Reset view" aria-label="Reset view">
+            <svg class="ico" aria-hidden="true"><use href="#i-reset"/></svg><span class="btn-label">Reset</span>
+          </button>
+          <button type="button" class="btn btn-ghost btn-icon" id="btn-theme" title="Light mode" aria-label="Light mode">
+            <svg class="ico ico-theme-dark" aria-hidden="true"><use href="#i-sun"/></svg>
+            <svg class="ico ico-theme-light" aria-hidden="true"><use href="#i-moon"/></svg>
+            <span class="btn-label">Light mode</span>
+          </button>
+          <button type="button" class="btn btn-ghost btn-icon" id="btn-audio" title="Play instrumental" aria-label="Play instrumental" aria-pressed="false">
+            <svg class="ico ico-audio-off" aria-hidden="true"><use href="#i-music"/></svg>
+            <svg class="ico ico-audio-on" aria-hidden="true"><use href="#i-mute"/></svg>
+            <span class="btn-label">Play instrumental</span>
+          </button>
+        </div>
+        <span class="chrome-divider" aria-hidden="true"></span>
+        <div class="chrome-exports" role="group" aria-label="Reports">
+          <button type="button" class="btn btn-secondary btn-icon" id="btn-export-pdf" title="Export PDF">
+            <svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span class="lbl-full">Export PDF</span><span class="lbl-short">PDF</span>
+          </button>
+          <button type="button" class="btn btn-primary btn-icon" id="btn-export-dual-xlsx" title="Excel workbook with both dashboards">
+            <svg class="ico" aria-hidden="true"><use href="#i-sheet"/></svg><span class="lbl-full">Excel (both)</span><span class="lbl-short">Excel</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- ========== INTELLIGENCE DASHBOARD ========== -->
   <div class="app app-view" id="view-intelligence" data-view="intelligence">
-    <header class="topbar">
-      <div class="topbar-head">
-        <div class="brand">
-          <img class="brand-logo" src="assets/ikeja-electric-logo.png" alt="Ikeja Electric" width="140" height="48" />
-          <div class="brand-text">
-            <p class="eyebrow">
-              <span class="eyebrow-static">Ikeja Electric</span>
-              <span class="eyebrow-sep" aria-hidden="true">·</span>
-              <span class="eyebrow-glow">Powered by the GIS Team</span>
-            </p>
-            <h1>IE Network Monitoring Dashboard</h1>
-          </div>
+    <section class="filter-panel" aria-labelledby="filter-panel-title">
+      <div class="filter-panel-head">
+        <div class="filter-panel-title">
+          <svg class="ico" aria-hidden="true"><use href="#i-filter"/></svg>
+          <h2 id="filter-panel-title">Network filters</h2>
+          <span class="filter-panel-hint">Applies to every chart, table and map</span>
         </div>
         <div class="io-actions" role="group" aria-label="Data import and export">
           <label class="btn btn-secondary btn-icon" title="Upload GeoJSON, KML, shapefile ZIP, or CSV">
@@ -184,7 +199,7 @@
           </div>
         </div>
       </div>
-    </header>
+    </section>
 
     <p class="io-status" id="io-status" hidden></p>
     <section class="kpi-strip" id="kpi-strip" aria-label="Key performance indicators"></section>
@@ -358,21 +373,6 @@
 
   <!-- ========== COVERAGE REPLICA (same tab) ========== -->
   <div class="app app-view coverage-app" id="view-coverage" data-view="coverage" hidden>
-    <header class="cov-header">
-      <div class="brand">
-        <img class="brand-logo" src="assets/ikeja-electric-logo.png" alt="Ikeja Electric" width="140" height="48" />
-        <div>
-          <p class="eyebrow">
-            <span class="eyebrow-static">Ikeja Electric</span>
-            <span class="eyebrow-sep" aria-hidden="true">·</span>
-            <span class="eyebrow-glow">Powered by the GIS Team</span>
-          </p>
-          <h1>IE Network Monitoring Dashboard</h1>
-          <p class="cov-sub">Enterprise spatial dashboard</p>
-        </div>
-      </div>
-    </header>
-
     <div class="coverage-layout">
       <aside class="cov-left-col">
         <div class="cov-kpis">
@@ -465,9 +465,8 @@
   <!-- ========== STORY MAP ========== -->
   <div class="app app-view story-app" id="view-story" data-view="story" hidden>
     <header class="story-hero">
-      <img class="brand-logo" src="assets/ikeja-electric-logo.png" alt="Ikeja Electric" />
       <p class="eyebrow-glow story-credit">Powered by the GIS Team</p>
-      <h1 class="story-title">Five Business Units, One Network</h1>
+      <h2 class="story-title">Five Business Units, One Network</h2>
       <p class="story-lead">
         In 2026, Ikeja Electric reorganised its distribution franchise from six Business Units to five.
         The Abule Egba Business Unit was dissolved and its service areas were absorbed by its neighbours —
