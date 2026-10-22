@@ -127,7 +127,151 @@
     labels: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
     lightGray: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
     darkGray: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    transport: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}",
+    street: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+    topo: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+    lightRef: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+    darkRef: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
   };
+  const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const DEFAULT_BASEMAP = "Hybrid (satellite + streets)";
+
+  /**
+   * Every basemap carries street names: satellite is always paired with the Esri roads and
+   * place-name reference layers, and the grey canvases with their matching reference layers.
+   */
+  function makeBasemaps() {
+    const esri = (url, o = {}) => L.tileLayer(url, { attribution: "Tiles © Esri", maxZoom: 20, maxNativeZoom: 19, ...o });
+    return {
+      [DEFAULT_BASEMAP]: L.layerGroup([
+        esri(ESRI_TILES.imagery),
+        esri(ESRI_TILES.transport, { attribution: "Roads © Esri" }),
+        esri(ESRI_TILES.labels, { attribution: "Labels © Esri", opacity: 0.95 }),
+      ]),
+      "Street map": esri(ESRI_TILES.street),
+      "OpenStreetMap": L.tileLayer(OSM_TILES, {
+        maxZoom: 20, maxNativeZoom: 19,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
+      }),
+      "Topographic": esri(ESRI_TILES.topo),
+      "Light canvas + streets": L.layerGroup([
+        esri(ESRI_TILES.lightGray, { maxNativeZoom: 16 }),
+        esri(ESRI_TILES.lightRef, { maxNativeZoom: 16 }),
+      ]),
+      "Dark canvas + streets": L.layerGroup([
+        esri(ESRI_TILES.darkGray, { maxNativeZoom: 16 }),
+        esri(ESRI_TILES.darkRef, { maxNativeZoom: 16 }),
+      ]),
+    };
+  }
+
+  const MAP_ICONS = {
+    expand: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></svg>',
+    collapse: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h5V3M21 8h-5V3M3 16h5v5M21 16h-5v5"/></svg>',
+    layers: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/></svg>',
+  };
+
+  /**
+   * On-map tools: an expand/collapse (full-window) button under the zoom buttons and a basemap
+   * picker in the top-right corner. The picker stays in step with the Filter Layers dropdown.
+   */
+  function addMapTools(map, bases, opts = {}) {
+    if (!map || !bases || map._ieMapTools) return;
+    map._ieMapTools = true;
+    const names = Object.keys(bases);
+    const storeKey = opts.storageKey ? `ie-basemap-${opts.storageKey}` : null;
+    const current = () => names.find((n) => map.hasLayer(bases[n]));
+
+    let menu = null;
+    const refresh = () => {
+      if (!menu) return;
+      const cur = current();
+      menu.querySelectorAll("[data-basemap]").forEach((b) => {
+        const on = b.dataset.basemap === cur;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-checked", on ? "true" : "false");
+      });
+    };
+    const select = (name) => {
+      const cur = current();
+      if (!bases[name] || cur === name) return;
+      if (cur) map.removeLayer(bases[cur]);
+      map.addLayer(bases[name]);
+      map.fire("baselayerchange", { layer: bases[name], name });
+    };
+    map.on("baselayerchange", (e) => {
+      refresh();
+      const name = e.name || names.find((n) => bases[n] === e.layer);
+      if (storeKey && name) { try { localStorage.setItem(storeKey, name); } catch { /* ignore */ } }
+    });
+
+    const BaseCtl = L.Control.extend({
+      options: { position: "topright" },
+      onAdd() {
+        const box = L.DomUtil.create("div", "leaflet-bar map-tool map-basemap-ctl");
+        box.innerHTML = `<button type="button" class="map-tool-btn" title="Basemap" aria-label="Choose basemap" aria-expanded="false">${MAP_ICONS.layers}</button>
+          <div class="map-basemap-menu" role="radiogroup" aria-label="Basemap" hidden>
+            <div class="map-basemap-title">Basemap</div>
+            ${names.map((n) => `<button type="button" role="radio" data-basemap="${n}">${n}</button>`).join("")}
+          </div>`;
+        L.DomEvent.disableClickPropagation(box);
+        L.DomEvent.disableScrollPropagation(box);
+        const btn = box.querySelector(".map-tool-btn");
+        menu = box.querySelector(".map-basemap-menu");
+        const close = () => { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); };
+        btn.addEventListener("click", () => {
+          menu.hidden = !menu.hidden;
+          btn.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
+          refresh();
+        });
+        menu.addEventListener("click", (e) => {
+          const b = e.target.closest("[data-basemap]");
+          if (!b) return;
+          select(b.dataset.basemap);
+          close();
+        });
+        document.addEventListener("click", (e) => { if (!box.contains(e.target)) close(); });
+        return box;
+      },
+    });
+    new BaseCtl().addTo(map);
+
+    const container = opts.container || map.getContainer().closest(".map-card") || map.getContainer();
+    let fsBtn = null;
+    const setExpanded = (on) => {
+      container.classList.toggle("map-expanded", on);
+      document.body.classList.toggle("map-expanded-open", on || !!document.querySelector(".map-expanded"));
+      if (fsBtn) {
+        fsBtn.innerHTML = on ? MAP_ICONS.collapse : MAP_ICONS.expand;
+        fsBtn.title = on ? "Collapse map" : "Expand map";
+        fsBtn.setAttribute("aria-label", fsBtn.title);
+        fsBtn.setAttribute("aria-pressed", on ? "true" : "false");
+      }
+      setTimeout(() => map.invalidateSize(), 60);
+      setTimeout(() => map.invalidateSize(), 320);
+    };
+    const FsCtl = L.Control.extend({
+      options: { position: "topleft" },
+      onAdd() {
+        const box = L.DomUtil.create("div", "leaflet-bar map-tool map-fs-ctl");
+        fsBtn = L.DomUtil.create("button", "map-tool-btn", box);
+        fsBtn.type = "button";
+        L.DomEvent.disableClickPropagation(box);
+        L.DomEvent.on(fsBtn, "click", () => setExpanded(!container.classList.contains("map-expanded")));
+        return box;
+      },
+    });
+    new FsCtl().addTo(map);
+    setExpanded(false);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && container.classList.contains("map-expanded")) setExpanded(false);
+    });
+
+    let saved = null;
+    if (storeKey) { try { saved = localStorage.getItem(storeKey); } catch { /* ignore */ } }
+    if (saved && bases[saved]) select(saved);
+    refresh();
+  }
 
   const chartDefaults = () => {
     const t = chartTheme();
@@ -1147,10 +1291,7 @@
   }
 
   function makeHybridBasemap() {
-    return L.layerGroup([
-      L.tileLayer(ESRI_TILES.imagery, { attribution: "Tiles © Esri", maxZoom: 19 }),
-      L.tileLayer(ESRI_TILES.labels, { attribution: "Labels © Esri", maxZoom: 19, opacity: 0.92 }),
-    ]);
+    return makeBasemaps()[DEFAULT_BASEMAP];
   }
 
   function setMapTheme(_theme) {
@@ -1253,12 +1394,10 @@
   function initMap() {
     if (state.map) return;
     state.map = L.map("map", { zoomControl: true }).setView([6.6, 3.45], 11);
-    state.baseTile = makeHybridBasemap();
+    const bases = makeBasemaps();
+    state.baseTile = bases[DEFAULT_BASEMAP];
     state.baseTile.addTo(state.map);
     ensureAssetLayerGroups();
-
-    const lightCanvas = L.tileLayer(ESRI_TILES.lightGray, { attribution: "Tiles © Esri", maxZoom: 16 });
-    const darkCanvas = L.tileLayer(ESRI_TILES.darkGray, { attribution: "Tiles © Esri", maxZoom: 16 });
 
     Object.keys(LAYER_DEFAULTS).forEach((key) => {
       if (LAYER_DEFAULTS[key] && state.layers[key]) state.layers[key].addTo(state.map);
@@ -1266,11 +1405,7 @@
 
     state.layerControl = attachTitleLayerFilter(
       state.map,
-      {
-        "Hybrid satellite": state.baseTile,
-        "Light canvas": lightCanvas,
-        "Dark canvas": darkCanvas,
-      },
+      bases,
       {
         "Lagos boundary": state.layers.lagos,
         "Business Units": state.layers.bu,
@@ -1291,6 +1426,7 @@
     state.map.on("baselayerchange", (e) => {
       state.baseTile = e.layer;
     });
+    addMapTools(state.map, bases, { storageKey: "intel" });
     redrawMapLayers({ zoom: true });
   }
 
@@ -2008,6 +2144,8 @@
     buDisplayName,
     utDisplayName,
     attachTitleLayerFilter,
+    makeBasemaps,
+    addMapTools,
     popupHtml: {
       bu: buPopupHtml,
       ut: utPopupHtml,

@@ -38,11 +38,22 @@
     darkGray: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
   };
 
+  /* Basemaps (all with street names) come from app.js; this fallback keeps roads and labels too. */
+  function basemapSet() {
+    const mk = window.IKEDC?.makeBasemaps;
+    if (mk) return mk();
+    return {
+      "Hybrid (satellite + streets)": L.layerGroup([
+        L.tileLayer(ESRI.imagery, { attribution: "Tiles © Esri", maxZoom: 19 }),
+        L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}", { attribution: "Roads © Esri", maxZoom: 19 }),
+        L.tileLayer(ESRI.labels, { attribution: "Labels © Esri", maxZoom: 19, opacity: 0.95 }),
+      ]),
+    };
+  }
+
   function hybridBasemapGroup() {
-    return L.layerGroup([
-      L.tileLayer(ESRI.imagery, { attribution: "Tiles © Esri", maxZoom: 19 }),
-      L.tileLayer(ESRI.labels, { attribution: "Labels © Esri", maxZoom: 19, opacity: 0.92 }),
-    ]);
+    const set = basemapSet();
+    return set[Object.keys(set)[0]];
   }
 
   function chartColors() {
@@ -214,6 +225,7 @@
 
   /* ---------- Coverage dashboard ---------- */
   let coverageBaseLayer = null;
+  let coverageBases = null;
   let coverageLayerControl = null;
 
   const COV_LAYER_DEFAULTS = {
@@ -250,7 +262,8 @@
     if (!experience.coverageMap) return;
     ensureCoverageLayerGroups();
     if (!coverageBaseLayer) {
-      coverageBaseLayer = hybridBasemapGroup();
+      coverageBases = basemapSet();
+      coverageBaseLayer = coverageBases[Object.keys(coverageBases)[0]];
       coverageBaseLayer.addTo(experience.coverageMap);
     }
     if (!coverageLayerControl) {
@@ -260,11 +273,7 @@
         }
       });
       const attach = window.IKEDC?.attachTitleLayerFilter;
-      const bases = {
-        "Hybrid satellite": coverageBaseLayer,
-        "Light canvas": L.tileLayer(ESRI.lightGray, { attribution: "Tiles © Esri", maxZoom: 16 }),
-        "Dark canvas": L.tileLayer(ESRI.darkGray, { attribution: "Tiles © Esri", maxZoom: 16 }),
-      };
+      const bases = coverageBases;
       const overlays = {
         "Lagos boundary": experience.coverageLayers.lagos,
         "Business Units": experience.coverageLayers.bus,
@@ -285,6 +294,7 @@
           collapsed: true,
         }).addTo(experience.coverageMap);
       }
+      window.IKEDC?.addMapTools?.(experience.coverageMap, bases, { storageKey: "coverage" });
     }
   }
 
@@ -352,6 +362,7 @@
         experience.coverageMap = null;
         coverageLayerControl = null;
         coverageBaseLayer = null;
+        coverageBases = null;
         experience.coverageLayers = {
           lagos: null, bus: null, ut: null, feeders11: null, feeders33: null,
           dtsPublic: null, dtsPrivate: null, iss: null, tcn: null, buLabels: null, utLabels: null,
@@ -1050,7 +1061,8 @@
     }
 
     const map = L.map(el, { zoomControl: true, attributionControl: false }).setView([6.55, 3.5], 10);
-    const base = hybridBasemapGroup();
+    const storyBases = basemapSet();
+    const base = storyBases[Object.keys(storyBases)[0]];
     base.addTo(map);
 
     const layers = {
@@ -1101,7 +1113,7 @@
       quality: "story-layers-quality",
     }[key];
     const storyHost = storyHostId ? document.getElementById(storyHostId) : null;
-    const bases = { "Hybrid satellite": base };
+    const bases = storyBases;
     const overlays = {
       "Business Units": layers.bus,
       "Feeders 11 kV": layers.feeders11,
