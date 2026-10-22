@@ -1291,7 +1291,7 @@
     mk("story-chart-glance-feeders", {
       type: "bar",
       data: {
-        labels: (data.feeders_by_bu || []).map((r) => r.bu_name),
+        labels: (data.feeders_by_bu || []).map((r) => (!r.bu_name || r.bu_name === "Unknown" || r.bu_name.startsWith("Unassigned") ? ["Unassigned", "(no DTs linked)"] : r.bu_name)),
         datasets: [
           { label: "Feeders", data: (data.feeders_by_bu || []).map((r) => r.feeder_count), backgroundColor: "#1f6fb2", borderRadius: 6 },
           { label: "Length km", data: (data.feeders_by_bu || []).map((r) => Math.round(r.len_km)), backgroundColor: "#d99a1e", borderRadius: 6 },
@@ -1303,7 +1303,8 @@
         layout: { padding: { top: 16 } },
         onClick: (_e, elems) => {
           if (!elems.length) return;
-          storyFilterBu((data.feeders_by_bu || [])[elems[0].index]?.bu_name);
+          const fbName = (data.feeders_by_bu || [])[elems[0].index]?.bu_name;
+          if (fbName && fbName !== "Unknown" && !fbName.startsWith("Unassigned")) storyFilterBu(fbName);
         },
         plugins: {
           legend: { position: "bottom", labels: { color: t.text } },

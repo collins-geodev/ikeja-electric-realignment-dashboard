@@ -1095,10 +1095,23 @@
       ? state.data.feeders_by_bu
       : state.data.feeders_by_bu.filter((r) => state.bus.includes(r.bu_name));
 
-    barChart("fbu", "chart-feeder-bu", byBu.map((r) => r.bu_name), [
+    /* Feeders with no DTs linked have no 2026 BU: show them on two lines and don't treat a click as a BU filter */
+    const isUnassigned = (name) => !name || name === "Unknown" || name.startsWith("Unassigned");
+    barChart("fbu", "chart-feeder-bu", byBu.map((r) => (isUnassigned(r.bu_name) ? ["Unassigned", "(no DTs linked)"] : r.bu_name)), [
       { label: "Feeders", data: byBu.map((r) => r.feeder_count), backgroundColor: "#1f6fb2", borderRadius: 6 },
       { label: "Length (km)", data: byBu.map((r) => Math.round(r.len_km)), backgroundColor: "#d99a1e", borderRadius: 6 },
-    ], { labelDecimals: 0 });
+    ], {
+      labelDecimals: 0,
+      scales: {
+        x: { grid: { display: false }, ticks: { maxRotation: 0, minRotation: 0, autoSkip: false, font: { size: 11 } } },
+        y: { beginAtZero: true, ticks: { callback: (v) => fmt.format(v) } },
+      },
+      onClick: (_evt, elems) => {
+        if (!elems.length) return;
+        const row = byBu[elems[0].index];
+        if (row && !isUnassigned(row.bu_name)) applyBuFilterFromLabel(row.bu_name);
+      },
+    });
 
     const sample = filteredFeedersMeta().slice(0, 180);
     const toPts = (rows) => rows.map((f) => ({
