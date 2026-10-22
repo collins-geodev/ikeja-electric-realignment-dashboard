@@ -2176,8 +2176,7 @@
 
     const meta = document.getElementById("footer-meta");
     if (meta) {
-      meta.textContent =
-        `${state.data.meta.title} · exported ${state.data.meta.generated} · ${state.data.meta.source}`;
+      meta.textContent = "Designed & Developed by Collins Anyanwu";
     }
 
     // Light UI first (no map yet)
