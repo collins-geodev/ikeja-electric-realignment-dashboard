@@ -1,7 +1,7 @@
 /**
  * In-dashboard article viewer for live feeds.
- * Resolves Google News redirects, proxies publisher HTML (stripping frame blockers),
- * and falls back to a readable article document when full pages cannot be framed.
+ * Resolves Google News destinations and serves isolated publisher previews,
+ * with a simplified article reader and explicit failure responses.
  */
 
 const UA =
@@ -20,7 +20,8 @@ function sendHtml(res, status, html) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cache-Control", "private, max-age=120");
   /* Allow embedding in our dashboard iframe */
-  res.setHeader("Content-Security-Policy", "frame-ancestors *");
+  res.setHeader("Content-Security-Policy", "frame-ancestors 'self'; sandbox allow-popups allow-popups-to-escape-sandbox");
+  res.setHeader("X-Content-Type-Options", "nosniff");
   res.end(html);
 }
 
@@ -73,78 +74,120 @@ function absolutize(url, base) {
   }
 }
 
-/** Follow redirects / unwrap Google News article URLs to the publisher page */
-async function resolvePublisherUrl(inputUrl) {
-  let current = inputUrl;
-  for (let hop = 0; hop < 6; hop += 1) {
-    const host = new URL(current).hostname.replace(/^www\./, "");
-    const isGoogleNews =
-      host === "news.google.com" ||
-      (host.endsWith("google.com") && /\/rss\/articles\//i.test(current));
+const { lookup } = require("node:dns/promises");
+const { isIP } = require("node:net");
 
-    const res = await fetch(current, {
-      method: "GET",
-      redirect: "manual",
-      headers: {
-        "User-Agent": UA,
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-NG,en;q=0.9",
-      },
-    });
-
-    const loc = res.headers.get("location");
-    if (loc && res.status >= 300 && res.status < 400) {
-      current = absolutize(loc, current);
-      continue;
-    }
-
-    const html = await res.text();
-    if (isGoogleNews || /news\.google\.com/i.test(current)) {
-      const patterns = [
-        /<a[^>]+href=["'](https?:\/\/[^"']+)["'][^>]*>\s*<h1/i,
-        /data-n-au=["'](https?:\/\/[^"']+)["']/i,
-        /["'](https?:\/\/(?!news\.google\.com|www\.google\.com|accounts\.google)[^"']+)["']/,
-        /<link[^>]+rel=["']canonical["'][^>]+href=["'](https?:\/\/[^"']+)["']/i,
-        /<meta[^>]+property=["']og:url["'][^>]+content=["'](https?:\/\/[^"']+)["']/i,
-      ];
-      for (const re of patterns) {
-        const m = html.match(re);
-        if (m?.[1] && !/google\.(com|com\.\w+)/i.test(new URL(m[1]).hostname)) {
-          current = m[1];
-          break;
-        }
-      }
-      /* Google sometimes embeds the destination in a c-wiz / JS blob */
-      const urlMatch = html.match(/\\"https?:\\\/\\\/(?!news\.google)[^"\\]+\\"/);
-      if (urlMatch) {
-        const raw = urlMatch[0].replace(/^\\"/, "").replace(/\\"$/, "").replace(/\\\//g, "/");
-        if (isHttpUrl(raw) && !/google\./i.test(new URL(raw).hostname)) {
-          return raw;
-        }
-      }
-      if (!/google\./i.test(new URL(current).hostname)) return current;
-      /* Last resort: stay on current if we already left Google */
-      if (!isGoogleNews) return current;
-      continue;
-    }
-
-    return res.url && isHttpUrl(res.url) ? res.url : current;
+function isPublicAddress(address) {
+  if (isIP(address) === 4) {
+    const [a, b] = address.split(".").map(Number);
+    return !(a === 0 || a === 10 || a === 127 || a >= 224 ||
+      (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && (b === 168 || b === 0)) || (a === 100 && b >= 64 && b <= 127) ||
+      (a === 198 && (b === 18 || b === 19)));
   }
-  return current;
+  // Public IPv6 global unicast only; exclude mapped/local/transition ranges.
+  return isIP(address) === 6 && /^[23]/i.test(address) &&
+    !/^2001:(?:0:|db8:)/i.test(address) && !/^2002:/i.test(address);
+}
+
+async function validateTarget(value) {
+  const url = new URL(value);
+  if (!isHttpUrl(value) || url.username || url.password ||
+      (url.port && !["80", "443"].includes(url.port))) throw new Error("Invalid publisher URL");
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  const addresses = isIP(host) ? [{ address: host }] : await lookup(host, { all: true });
+  if (!addresses.length || addresses.some(({ address }) => !isPublicAddress(address))) {
+    throw new Error("Publisher URL must be a public website");
+  }
 }
 
 async function fetchPage(url) {
-  const res = await fetch(url, {
-    redirect: "follow",
-    headers: {
-      "User-Agent": UA,
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "en-NG,en;q=0.9",
-    },
+  let current = url;
+  const signal = AbortSignal.timeout(15000);
+  for (let hop = 0; hop < 6; hop += 1) {
+    await validateTarget(current);
+    const res = await fetch(current, {
+      redirect: "manual", signal,
+      headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml", "Accept-Language": "en-NG,en;q=0.9" },
+    });
+    const location = res.headers.get("location");
+    if (res.status >= 300 && res.status < 400 && location) {
+      await res.body?.cancel();
+      current = absolutize(location, current);
+      continue;
+    }
+    if (!res.ok) { await res.body?.cancel(); throw new Error("Publisher returned HTTP " + res.status); }
+    const contentType = res.headers.get("content-type") || "";
+    if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) {
+      await res.body?.cancel();
+      throw new Error("The publisher did not return a web page");
+    }
+    const chunks = [];
+    let bytes = 0;
+    for await (const chunk of res.body) {
+      bytes += chunk.length;
+      if (bytes > 4 * 1024 * 1024) throw new Error("Publisher page is too large for preview");
+      chunks.push(Buffer.from(chunk));
+    }
+    return { html: Buffer.concat(chunks).toString("utf8"), finalUrl: current, contentType };
+  }
+  throw new Error("Too many publisher redirects");
+}
+
+function decodedPublisher(value) {
+  if (Array.isArray(value)) {
+    if (value[0] === "garturlres" && isHttpUrl(value[1])) return value[1];
+    for (const entry of value) {
+      const url = decodedPublisher(entry);
+      if (url) return url;
+    }
+  } else if (typeof value === "string" && value.startsWith("[")) {
+    try { return decodedPublisher(JSON.parse(value)); } catch { /* not a data frame */ }
+  }
+  return "";
+}
+
+async function resolveGoogleArticle(id, html) {
+  const timestamp = html.match(/data-n-a-ts=["'](\d+)["']/)?.[1];
+  const signature = html.match(/data-n-a-sg=["']([^"']+)["']/)?.[1];
+  if (!timestamp || !signature) return "";
+  // Google News' redirect page provides a signed destination-resolution request.
+  const context = [["en-NG", "NG", ["X", "X"], null, null, 1, 1, "NG:en", null, 1,
+    null, null, null, null, null, 0, 1], "en-NG", "NG", 1, [1, 1, 1], 1, 1, null, 0, 0, null, 0];
+  const payload = ["garturlreq", context, id, Number(timestamp), signature];
+  const response = await fetch("https://news.google.com/_/DotsSplashUi/data/batchexecute?rpcids=Fbv4je", {
+    method: "POST", redirect: "error", signal: AbortSignal.timeout(8000),
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8", "User-Agent": UA },
+    body: new URLSearchParams({ "f.req": JSON.stringify([[["Fbv4je", JSON.stringify(payload), null, "generic"]]]) }),
   });
-  const html = await res.text();
-  const finalUrl = res.url || url;
-  return { html, finalUrl, status: res.status, contentType: res.headers.get("content-type") || "" };
+  if (!response.ok) throw new Error("Google News destination unavailable");
+  const text = await response.text();
+  for (const line of text.split("\n")) {
+    if (!line.trim().startsWith("[")) continue;
+    try {
+      const publisher = decodedPublisher(JSON.parse(line));
+      if (publisher && new URL(publisher).hostname !== "news.google.com") return publisher;
+    } catch { /* skip framing lines */ }
+  }
+  return "";
+}
+
+/** Resolve only explicit publisher destinations, never unrelated links in Google navigation. */
+async function resolvePublisherUrl(inputUrl) {
+  const page = await fetchPage(inputUrl);
+  if (new URL(page.finalUrl).hostname !== "news.google.com") return page;
+  const match = page.html.match(/data-n-au=["'](https?:\/\/[^"']+)["']/i);
+  if (match) return fetchPage(decodeEntities(match[1]));
+  // Older Google News RSS IDs include the publisher URL directly.
+  const id = new URL(inputUrl).pathname.match(/\/articles\/([^/]+)/)?.[1];
+  if (id) {
+    const decoded = Buffer.from(id, "base64url").toString("utf8");
+    const legacy = decoded.match(/https?:\/\/[^\s<>"\x00-\x20\x7f-\uffff]+/);
+    if (legacy && new URL(legacy[0]).hostname !== "news.google.com") return fetchPage(legacy[0]);
+    const publisher = await resolveGoogleArticle(id, page.html);
+    if (publisher) return fetchPage(publisher);
+  }
+  throw new Error("Google News requires opening this story on the publisher site");
 }
 
 function stripChrome(html) {
@@ -341,13 +384,14 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    let target = rawUrl;
-    if (/news\.google\.com|google\.com\/rss/i.test(rawUrl)) {
-      target = await resolvePublisherUrl(rawUrl);
+    const page = new URL(rawUrl).hostname === "news.google.com"
+      ? await resolvePublisherUrl(rawUrl)
+      : await fetchPage(rawUrl);
+    if (/subscribe to continue|verify you are human|cf-browser-verification/i.test(page.html)) {
+      throw new Error("This publisher requires opening its website");
     }
-
-    const page = await fetchPage(target);
     const article = extractArticle(page.html, page.finalUrl);
+    res.setHeader("X-Article-Publisher", page.finalUrl);
 
     if (mode === "json") {
       sendJson(res, 200, {
@@ -372,20 +416,6 @@ module.exports = async function handler(req, res) {
       sendJson(res, 502, { ok: false, error: String(err.message || err) });
       return;
     }
-    sendHtml(
-      res,
-      200,
-      readerDocument(
-        {
-          title: "Unable to load article",
-          byline: "",
-          siteName: "Live feed",
-          description: "",
-          bodyHtml: `<p class="empty">${escapeHtml(String(err.message || err))}. Use Publisher site to continue.</p>`,
-          pageUrl: rawUrl,
-        },
-        rawUrl
-      )
-    );
+    sendJson(res, 502, { ok: false, error: "Publisher preview unavailable. Open the publisher directly." });
   }
 };

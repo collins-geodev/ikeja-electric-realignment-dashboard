@@ -204,9 +204,13 @@ Pushes to `main` can also publish when the GitHub project is linked in the Verce
 ## Interaction notes
 
 - **Click again to clear** — selecting the same chart bar, table row, or map focus a second time resets the filter.
-- **Live feeds** — open in a new browser tab on the publisher news page (Google News wrappers are resolved server-side).
+- **Live feeds** — open in a responsive in-dashboard news window with publisher preview, Reader view, Retry, and Open publisher controls. Google News destinations are resolved server-side. Publishers that require sign-in or block previews can be opened directly. Escape closes the window and returns focus to the story.
 - **Reset** — clears filters across Operational Dashboard and Dashboard Summary and restores franchise map framing.
-- **Theme** — light / dark mode with Ikeja Electric brand logos.
+- **Theme** — launches in light mode; the theme button switches between light and dark for the current visit.
+- **Mobile and tablet** — touch-sized controls, wrapping navigation, adaptive filter/chart grids, contained table scrolling, and a news window that fits the viewport.
+- **StoryMap** — starts with the full franchise overview ahead of the narrative. The on-map expand/collapse icon fills the screen and restores the map card; Escape also collapses the map.
+
+Run regression checks with `node tests/regressions.cjs` (Node.js 24). These cover RSS/Atom article URLs, Google destination responses, invalid links and dates, publisher response handling, private-address rejection, and the launch theme.
 
 ---
 

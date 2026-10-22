@@ -6,7 +6,7 @@
 
   const experience = {
     view: "intelligence",
-    theme: localStorage.getItem("ikedc-theme") || "dark",
+    theme: "light", // Start every dashboard launch in light mode.
     audioOn: false,
     audioCtx: null,
     nodes: null,
@@ -90,7 +90,7 @@
   function applyTheme(theme) {
     experience.theme = theme;
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("ikedc-theme", theme);
+    // Theme changes apply to this visit; each launch starts in light mode.
     setButtonLabel($("#btn-theme"), theme === "dark" ? "Light mode" : "Dark mode");
     syncBrandLogos(theme);
     window.IKEDC?.setMapTheme?.(theme);
@@ -1127,6 +1127,10 @@
     map._ikedcLayerControl = attach && storyHost
       ? attach(map, bases, overlays, storyHost, map._ikedcLayerControl)
       : L.control.layers(bases, overlays, { position: "topright", collapsed: true }).addTo(map);
+    window.IKEDC?.addMapTools?.(map, storyBases, {
+      container: el.closest(".story-map-shell"),
+      portal: true,
+    });
 
     const labels = window.IKEDC?.getLabels?.() || experience.labels || { bu: [], ut: [] };
     const buLab = L.layerGroup();
@@ -1146,8 +1150,12 @@
     };
     map.on("zoomend", sync);
     sync();
-    if (bounds.length) map.fitBounds(bounds, { padding: [12, 12] });
-    setTimeout(() => map.invalidateSize(), 80);
+    const fitOverview = () => {
+      map.invalidateSize();
+      if (bounds.length) map.fitBounds(bounds, { padding: [24, 24], maxZoom: 12, animate: false });
+    };
+    // Fit after the StoryMap panel is visible and has its responsive dimensions.
+    requestAnimationFrame(fitOverview);
     experience.storyMaps[key] = map;
     if (key === "before") experience.storyMap = map;
     return map;

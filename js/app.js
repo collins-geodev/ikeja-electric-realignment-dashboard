@@ -238,7 +238,18 @@
 
     const container = opts.container || map.getContainer().closest(".map-card") || map.getContainer();
     let fsBtn = null;
+    let placeholder = null;
     const setExpanded = (on) => {
+      // Story panels animate with transforms, so expand their map outside that
+      // stacking context and restore its exact place when it is collapsed.
+      if (opts.portal && on && !placeholder) {
+        placeholder = document.createComment("expanded map position");
+        container.before(placeholder);
+        document.body.appendChild(container);
+      } else if (opts.portal && !on && placeholder) {
+        placeholder.replaceWith(container);
+        placeholder = null;
+      }
       container.classList.toggle("map-expanded", on);
       document.body.classList.toggle("map-expanded-open", on || !!document.querySelector(".map-expanded"));
       if (fsBtn) {
@@ -247,6 +258,7 @@
         fsBtn.setAttribute("aria-label", fsBtn.title);
         fsBtn.setAttribute("aria-pressed", on ? "true" : "false");
       }
+      if (fsBtn && on) fsBtn.focus();
       setTimeout(() => map.invalidateSize(), 60);
       setTimeout(() => map.invalidateSize(), 320);
     };

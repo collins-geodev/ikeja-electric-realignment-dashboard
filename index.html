@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -83,10 +83,10 @@
           <button type="button" class="btn btn-ghost btn-icon" id="btn-reset" title="Reset view" aria-label="Reset view">
             <svg class="ico" aria-hidden="true"><use href="#i-reset"/></svg><span class="btn-label">Reset</span>
           </button>
-          <button type="button" class="btn btn-ghost btn-icon" id="btn-theme" title="Light mode" aria-label="Light mode">
+          <button type="button" class="btn btn-ghost btn-icon" id="btn-theme" title="Dark mode" aria-label="Dark mode">
             <svg class="ico ico-theme-dark" aria-hidden="true"><use href="#i-sun"/></svg>
             <svg class="ico ico-theme-light" aria-hidden="true"><use href="#i-moon"/></svg>
-            <span class="btn-label">Light mode</span>
+            <span class="btn-label">Dark mode</span>
           </button>
           <button type="button" class="btn btn-ghost btn-icon" id="btn-audio" title="Play instrumental" aria-label="Play instrumental" aria-pressed="false">
             <svg class="ico ico-audio-off" aria-hidden="true"><use href="#i-music"/></svg>
@@ -493,6 +493,13 @@
 
     <section class="story-panel active" data-story-panel="glance" role="tabpanel" id="story-glance">
       <h2>The realignment at a glance</h2>
+      <div class="story-map-shell">
+        <div class="story-map-toolbar">
+          <span class="story-map-toolbar-label">Franchise overview</span>
+          <div class="map-layer-host" id="story-layers-glance" data-map-layers></div>
+        </div>
+        <div id="story-map-glance" class="story-map-panel" aria-label="Franchise overview map"></div>
+      </div>
       <p>
         In 2026 Ikeja Electric collapsed six Business Units into five clearer territories so field crews, planners,
         and customer operations share one spatial truth. Every figure below is computed from the same DT register
@@ -519,13 +526,7 @@
         <article><h3>One asset register</h3><p>20,789 distribution transformers tagged to 2026 BU / UT with public vs private ownership symbology.</p></article>
         <article><h3>One MV network view</h3><p>418 feeders (11 kV cool-blue / 33 kV warm-orange) animated as a live corridor layer with length and DT load metrics.</p></article>
       </div>
-      <div class="story-map-shell">
-        <div class="story-map-toolbar">
-          <span class="story-map-toolbar-label">Franchise overview</span>
-          <div class="map-layer-host" id="story-layers-glance" data-map-layers></div>
-        </div>
-        <div id="story-map-glance" class="story-map-panel" aria-label="Franchise overview map"></div>
-      </div>
+
     </section>
 
     <section class="story-panel" data-story-panel="before" role="tabpanel" id="story-before" hidden>

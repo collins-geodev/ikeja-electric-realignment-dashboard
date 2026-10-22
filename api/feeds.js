@@ -194,10 +194,16 @@ function pickTag(block, tag) {
 }
 
 function pickLink(block) {
-  const atom = block.match(/<link[^>]+href=["']([^"']+)["']/i);
-  if (atom) return atom[1];
-  const rss = pickTag(block, "link");
-  return rss || "";
+  // Links are URLs, not summary text: stripHtml deliberately removes URLs.
+  const atomLinks = [...block.matchAll(/<link\b[^>]*\bhref=["']([^"']+)["'][^>]*>/gi)];
+  const atom = atomLinks.find((m) => !/\brel=["'](?:self|enclosure)["']/i.test(m[0]));
+  const rss = block.match(/<link\b[^>]*>([\s\S]*?)<\/link>/i);
+  const raw = atom?.[1] || rss?.[1] || "";
+  const link = decodeEntities(raw.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1")).trim();
+  try {
+    const url = new URL(link);
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch { return ""; }
 }
 
 function parseRss(xml, source, limit = 8) {
@@ -208,6 +214,7 @@ function parseRss(xml, source, limit = 8) {
     const title = pickTag(chunk, "title");
     if (!title) continue;
     const link = pickLink(chunk);
+    if (!link) continue; // Never substitute the feed listing for an article.
     const date =
       pickTag(chunk, "pubDate") ||
       pickTag(chunk, "published") ||
@@ -225,8 +232,8 @@ function parseRss(xml, source, limit = 8) {
       source: source.name,
       sourceName: source.name,
       title,
-      url: link || source.url,
-      publishedAt: date ? new Date(date).toISOString() : null,
+      url: link,
+      publishedAt: Number.isFinite(Date.parse(date)) ? new Date(date).toISOString() : null,
       summary: summary.slice(0, 220),
     });
   }
