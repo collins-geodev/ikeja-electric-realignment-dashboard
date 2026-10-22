@@ -81,7 +81,7 @@ Figures are loaded from `data/dashboard.json` at runtime (values update when the
 | Public / Private DTs | On | Canvas markers for performance |
 | ISS | On | Injection substations |
 | TCN stations | On | Transmission stations |
-| Uploaded layers | On | User GeoJSON / KML / shapefile ZIP / CSV |
+| Uploaded layers | On | Owner-only GeoJSON / KML / shapefile ZIP / CSV (see Owner-only upload) |
 
 Use **Filter Layers** in each map title bar to toggle overlays. Default framing is the Lagos franchise overview (Ota→Epe, coast→Shagamu).
 
@@ -215,3 +215,12 @@ Pushes to `main` can also publish when the GitHub project is linked in the Verce
 Designed & Developed by **Collins Anyanwu**
 
 Powered by the Ikeja Electric GIS Team.
+
+## Owner-only upload
+
+The **Upload** button is hidden for all visitors. To unlock it on a browser, open the dashboard with
+`?owner` added to the address (for example `https://ikeja-electric-realignment-dashboard.vercel.app/?owner#intelligence`)
+or press **Ctrl+Shift+U**, then enter the owner passcode. `/api/owner` checks the passcode against a salted
+PBKDF2 hash, so the passcode itself is not stored in this repository. The browser then remembers it until
+`?owner=signout` (or Ctrl+Shift+U again) locks it. To change the passcode, set `OWNER_UPLOAD_KEY_HASH` in the
+Vercel project (format `pbkdf2-sha256$<iterations>$<salt hex>$<hash hex>`).

@@ -2234,3 +2234,6 @@ body.feed-reader-open { overflow: hidden; }
     stroke-dasharray: none !important;
   }
 }
+
+/* Upload is owner-only: hidden until the owner passcode is verified */
+#upload-btn[hidden] { display: none !important; }

@@ -1766,11 +1766,84 @@
     throw new Error(`Unsupported file: ${file.name}`);
   }
 
+  /* ---------- Owner-only upload ----------
+   * The Upload button stays hidden for every visitor. The owner unlocks it once per browser by
+   * opening the dashboard with ?owner in the address (or pressing Ctrl+Shift+U) and entering the
+   * owner passcode, which /api/owner checks against a salted hash. ?owner=signout locks it again. */
+  const OWNER_KEY = "ie-dashboard-owner-key";
+  state.isOwner = false;
+
+  function setOwnerUI(on) {
+    state.isOwner = !!on;
+    const btn = document.getElementById("upload-btn");
+    if (btn) btn.hidden = !state.isOwner;
+  }
+
+  async function checkOwnerKey(key) {
+    try {
+      const r = await fetch("/api/owner", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+      });
+      return r.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async function ownerSignIn() {
+    const key = window.prompt("Owner passcode to enable uploads on this browser:");
+    if (!key) return;
+    if (await checkOwnerKey(key)) {
+      try { localStorage.setItem(OWNER_KEY, key); } catch { /* private mode: unlock for this visit only */ }
+      setOwnerUI(true);
+      setStatus("Upload enabled for the dashboard owner on this browser.");
+    } else {
+      setOwnerUI(false);
+      setStatus("Passcode not recognised. Upload stays locked.", true);
+    }
+  }
+
+  function ownerSignOut() {
+    try { localStorage.removeItem(OWNER_KEY); } catch { /* ignore */ }
+    setOwnerUI(false);
+    setStatus("Upload locked on this browser.");
+  }
+
+  async function initOwner() {
+    setOwnerUI(false);
+    document.addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === "U" || e.key === "u")) {
+        e.preventDefault();
+        if (state.isOwner) ownerSignOut(); else ownerSignIn();
+      }
+    });
+    const params = new URLSearchParams(location.search);
+    const flag = params.has("owner") ? (params.get("owner") || "").toLowerCase() : null;
+    if (flag !== null) {
+      params.delete("owner");
+      const q = params.toString();
+      history.replaceState(null, "", location.pathname + (q ? "?" + q : "") + location.hash);
+      if (flag === "signout" || flag === "logout") { ownerSignOut(); return; }
+    }
+    let saved = null;
+    try { saved = localStorage.getItem(OWNER_KEY); } catch { /* ignore */ }
+    if (saved && await checkOwnerKey(saved)) { setOwnerUI(true); return; }
+    if (saved) { try { localStorage.removeItem(OWNER_KEY); } catch { /* ignore */ } }
+    if (flag !== null) await ownerSignIn();
+  }
+
   function wireUploadExport() {
     const input = document.getElementById("upload-input");
     input.addEventListener("change", async () => {
       const files = [...input.files];
       if (!files.length) return;
+      if (!state.isOwner) {
+        input.value = "";
+        setStatus("Uploading is restricted to the dashboard owner.", true);
+        return;
+      }
       setStatus(`Parsing ${files.length} file(s)…`);
       try {
         let added = 0;
@@ -1956,6 +2029,7 @@
     wireTabs();
     wireCombos();
     wireUploadExport();
+    initOwner();
 
     // Critical path: dashboard JSON first so KPIs/filters paint ASAP
     const dashRes = await fetch("data/dashboard.json");
