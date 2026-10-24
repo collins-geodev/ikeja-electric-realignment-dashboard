@@ -21,9 +21,11 @@
     const btn = document.getElementById("btn-audio");
     if (!btn) return;
     const text = playing ? "Mute instrumental" : "Play instrumental";
+    /* Short visible name; the full wording stays in the tooltip and aria-label */
+    const short = playing ? "Mute" : "Music";
     const label = btn.querySelector(".btn-label");
-    if (label) label.textContent = text;
-    else btn.textContent = text;
+    if (label) label.textContent = short;
+    else btn.textContent = short;
     btn.title = `${text} · quiet gapless loop`;
     btn.setAttribute("aria-label", text);
     btn.setAttribute("aria-pressed", playing ? "true" : "false");

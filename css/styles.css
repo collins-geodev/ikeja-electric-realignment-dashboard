@@ -247,7 +247,7 @@ body {
   border-color: rgba(240, 180, 41, 0.45);
   background: rgba(240, 180, 41, 0.08);
 }
-.chrome-utils .btn-label { display: none; }
+.chrome-utils .btn-label { display: inline; }
 #btn-audio[aria-pressed="true"] {
   color: var(--accent);
   border-color: rgba(240, 180, 41, 0.45);
@@ -2047,7 +2047,6 @@ button.kpi .value {
 }
 @media (min-width: 1024px) and (max-width: 1279px) {
   .chrome-utils .btn-icon { padding: 0 0.8rem; }
-  .chrome-utils .btn-label { display: inline; }
 }
 @media (max-width: 899px) {
   .chrome-tabs .ico { display: none; }
@@ -2086,6 +2085,14 @@ button.kpi .value {
     gap: 0.5rem;
   }
   .chrome-utils .btn-icon { padding: 0 0.6rem; }
+  /* Named Reset / theme / music buttons get their own row of equal columns */
+  .chrome-utils {
+    flex: 1 1 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .chrome-utils .btn-icon { width: 100%; min-width: 0; }
+  .chrome-utils .btn-label { overflow: hidden; text-overflow: ellipsis; }
   .chrome-data { flex: 1 1 0; min-width: 0; margin-left: 0; }
   .chrome-exports { margin-left: 0; }
   .chrome-data > .btn,

@@ -77,11 +77,12 @@
     });
   }
 
-  function setButtonLabel(btn, text) {
+  /** Visible name can be shorter than the tooltip / screen-reader text */
+  function setButtonLabel(btn, text, shortText = text) {
     if (!btn) return;
     const label = btn.querySelector(".btn-label");
-    if (label) label.textContent = text;
-    else btn.textContent = text;
+    if (label) label.textContent = shortText;
+    else btn.textContent = shortText;
     btn.title = text;
     btn.setAttribute("aria-label", text);
   }
@@ -164,7 +165,7 @@
       return;
     }
     const btn = $("#btn-audio");
-    setButtonLabel(btn, on ? "Mute instrumental" : "Play instrumental");
+    setButtonLabel(btn, on ? "Mute instrumental" : "Play instrumental", on ? "Mute" : "Music");
     btn?.setAttribute("aria-pressed", on ? "true" : "false");
   }
 
