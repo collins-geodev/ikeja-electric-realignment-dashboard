@@ -2030,14 +2030,59 @@
     return _dtFeeder.get(name) || "";
   }
 
-  /** Keep the feeder and DT pickers in step: a feeder narrows the DT list, a DT selects its own feeder */
+  /* Filter hierarchy, top → bottom: the state key and the register field each level reads */
+  const FILTER_LEVELS = [
+    { kind: "bu", key: "bus", field: "bu" },
+    { kind: "ut", key: "uts", field: "ut" },
+    { kind: "feeder", key: "feeders", field: "feeder" },
+    { kind: "dt", key: "dts", field: "name" },
+  ];
+  /** Parent picks the cascade filled in (key → value it set); a value the user changed since is theirs */
+  const autoFilled = new Map();
+  const isAutoFilled = (key) => autoFilled.has(key) && autoFilled.get(key) === JSON.stringify(state[key]);
+
+  /** Register rows (UTs map to their BU even before the register loads) */
+  function rowsFor(field, values) {
+    const set = new Set(values);
+    if (field === "ut") {
+      return state.data.undertakings.filter((u) => set.has(u.ut_name)).map((u) => ({ bu: u.bu_name, ut: u.ut_name }));
+    }
+    return (state.data.map.dt_sample || []).filter((d) => set.has(d[field]));
+  }
+
+  /**
+   * Keep the BU → UT → feeder → DT pickers in step:
+   * a pick narrows every level below it (dropping picks outside it) and fills in the
+   * empty levels above it, e.g. a DT selects its own feeder, UT and BU.
+   * Filled-in parents follow later picks and clear when nothing below is picked.
+   */
   function cascadeSelection(kind, arr) {
-    if (kind === "feeder" && arr.length) {
-      state.dts = state.dts.filter((n) => arr.includes(dtFeederOf(n)));
-    }
-    if (kind === "dt" && arr.length) {
-      state.feeders = uniq(state.feeders.concat(arr.map(dtFeederOf)));
-    }
+    const idx = FILTER_LEVELS.findIndex((l) => l.kind === kind);
+    autoFilled.delete(FILTER_LEVELS[idx].key);
+
+    FILTER_LEVELS.slice(0, idx).reverse().forEach((parent) => {
+      if (!empty(state[parent.key]) && !isAutoFilled(parent.key)) return; // the user's own pick
+      /* Nearest level below that still has picks decides the parent */
+      const source = FILTER_LEVELS.slice(FILTER_LEVELS.indexOf(parent) + 1).find((l) => !empty(state[l.key]));
+      if (!source) {
+        if (isAutoFilled(parent.key)) state[parent.key] = [];
+        autoFilled.delete(parent.key);
+        return;
+      }
+      const values = uniq(rowsFor(source.field, state[source.key]).map((r) => r[parent.field]));
+      if (!values.length) return;
+      state[parent.key] = values;
+      autoFilled.set(parent.key, JSON.stringify(values));
+    });
+
+    if (!arr.length) return;
+    FILTER_LEVELS.slice(idx + 1).forEach((child) => {
+      if (empty(state[child.key])) return;
+      const above = FILTER_LEVELS.slice(0, FILTER_LEVELS.indexOf(child)).filter((l) => !empty(state[l.key]));
+      const fits = (r) => above.every((l) => state[l.key].includes(r[l.field]));
+      const kept = new Set(rowsFor(child.field, state[child.key]).filter(fits).map((r) => r[child.field]));
+      state[child.key] = state[child.key].filter((v) => kept.has(v));
+    });
   }
 
   function fillComboList(kind, query) {
@@ -2068,15 +2113,6 @@
         if (!input.checked && idx >= 0) arr.splice(idx, 1);
         setSelectedArr(kind, arr);
         cascadeSelection(kind, arr);
-        if (kind === "bu") {
-          /* drop UTs/feeders/DTs outside selected BUs */
-          if (arr.length) {
-            state.uts = state.uts.filter((ut) => {
-              const hit = state.data.undertakings.find((u) => u.ut_name === ut);
-              return hit && arr.includes(hit.bu_name);
-            });
-          }
-        }
         syncComboLabels();
         refreshAll({ zoom: true });
         /* keep panel open for multi-select */
@@ -2132,6 +2168,7 @@
           e.stopPropagation();
           if (btn.dataset.action === "clear") {
             setSelectedArr(kind, []);
+            cascadeSelection(kind, []);
           } else if (btn.dataset.action === "select-all") {
             const { items } = visibleComboItems(kind, search.value || "");
             setSelectedArr(kind, items.map((i) => i.value));
