@@ -29,5 +29,34 @@ function response(){return {headers:{},setHeader(k,v){this.headers[k]=v;},end(bo
   r=response();await failing({method:'GET',query:{url:'https://8.8.8.8/story'}},r);assert.equal(r.statusCode,502);
   const html=fs.readFileSync(__dirname+'/../index.html','utf8');assert.match(html,/data-theme="light"/);
   const exp=fs.readFileSync(__dirname+'/../js/experience.js','utf8');assert.match(exp,/theme: "light"/);assert.doesNotMatch(exp,/localStorage.getItem\("ikedc-theme"\)/);
-  console.log('PASS: RSS/Atom URLs, missing/unsafe URLs, invalid dates, public-target checks, publisher/reader responses, failure status, light launch defaults.');
+  // Broader channels: Nigeria-only tabs, worldwide GIS / GeoAI / AI-ML tabs, X posts
+  const rssOf=(items)=>'<rss>'+items.map(([t,l,d])=>`<item><title>${t}</title><link>${l}</link><pubDate>${d||'Fri, 23 Oct 2026 10:00:00 GMT'}</pubDate><description>${t}</description></item>`).join('')+'</rss>';
+  const fakeFetch=async(url)=>{
+    url=String(url);
+    if(url.includes('api.x.com')) return new Response(JSON.stringify({data:[{id:'111',text:'GeoAI model maps solar farms from satellite imagery',author_id:'9',created_at:'2026-10-24T08:00:00Z'}],includes:{users:[{id:'9',username:'geoai_lab'}]}}),{headers:{'content-type':'application/json'}});
+    if(url.includes('punchng.com')) return new Response(rssOf([['Ikeja Electric restores supply to Agege feeders','https://punchng.com/a'],['Super Eagles win friendly','https://punchng.com/b']]));
+    if(url.includes('bing.com')&&url.includes('en-NG')) return new Response(rssOf([['Grid collapse hits power supply in the UK','https://www.bing.com/news/apiclick.aspx?url=https%3A%2F%2Fexample.co.uk%2Fgrid'],['TCN restores national grid after collapse in Nigeria','https://www.bing.com/news/apiclick.aspx?url=https%3A%2F%2Fexample.ng%2Fgrid']]));
+    if(url.includes('esri.com')) return new Response(rssOf([['New ArcGIS spatial analysis tools for utility network','https://www.esri.com/x'],['New ArcGIS spatial analysis tools for utility network - Esri','https://dup.example/x']]));
+    if(url.includes('gl=US')) return new Response(rssOf([['Geospatial digital twin for city mapping in Germany','https://example.de/gis']]));
+    return new Response('<rss></rss>');
+  };
+  const feeds2=load('api/feeds.js','module.exports={unwrapLink,channelKeeps,loadSource,SOURCES};',{fetch:fakeFetch,Response,URLSearchParams,AbortController,process:{env:{X_BEARER_TOKEN:'test'}}});
+  assert.equal(feeds2.unwrapLink('https://www.bing.com/news/apiclick.aspx?url=https%3A%2F%2Fexample.ng%2Fstory&c=1'),'https://example.ng/story');
+  const src=(id)=>feeds2.SOURCES.find((x)=>x.id===id);
+  const power=src('google-power'), gis=src('google-gis'), geoai=src('google-geoai');
+  assert.equal(feeds2.channelKeeps({title:'Grid collapse hits power supply in the UK',summary:''},power,{region:'global'}),false);
+  assert.equal(feeds2.channelKeeps({title:'TCN restores national grid after collapse in Nigeria',summary:''},power,{region:'global'}),true);
+  assert.equal(feeds2.channelKeeps({title:'Geospatial digital twin for city mapping in Germany',summary:''},gis,{region:'global'}),true);
+  const ikejaRes=await feeds2.loadSource(src('ikeja'),{text:{},x:{}});
+  assert.ok(ikejaRes.items.some((it)=>it.title.startsWith('Ikeja Electric restores')&&it.sourceName==='Ikeja Electric · Punch'));
+  assert.ok(!ikejaRes.items.some((it)=>/Super Eagles/.test(it.title)));
+  const powerRes=await feeds2.loadSource(power,{text:{},x:{}});
+  assert.ok(powerRes.items.some((it)=>it.url==='https://example.ng/grid'));
+  assert.ok(!powerRes.items.some((it)=>it.url==='https://example.co.uk/grid'));
+  const gisRes=await feeds2.loadSource(gis,{text:{},x:{}});
+  assert.equal(gisRes.items.filter((it)=>/ArcGIS spatial analysis/.test(it.title)).length,1);
+  assert.ok(gisRes.items.some((it)=>/Germany/.test(it.title)));
+  const geoRes=await feeds2.loadSource(geoai,{text:{},x:{}});
+  assert.ok(geoRes.items.some((it)=>it.url==='https://x.com/geoai_lab/status/111'&&it.sourceName==='GeoAI News · X @geoai_lab'));
+  console.log('PASS: RSS/Atom URLs, missing/unsafe URLs, invalid dates, public-target checks, publisher/reader responses, failure status, light launch defaults, broader channels (Nigeria-only filter, outlet keywords, Bing unwrap, de-dupe, X posts).');
 })().catch(e=>{console.error(e);process.exitCode=1;});
