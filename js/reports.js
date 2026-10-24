@@ -596,41 +596,28 @@
         ctx.stroke();
       }));
     });
-    const buOn = (b) => R.network || scopeBus.has(b.bu_name);
-    data.map.bu_polygons.forEach((b) => {
-      b.rings.forEach((ring) => {
-        path(ring);
-        ctx.globalAlpha = buOn(b) ? 0.3 : 0.08;
-        ctx.fillStyle = b.fill_hex;
-        ctx.fill();
-        ctx.globalAlpha = 1;
+    /* BU then UT areas in the KMZ symbology; one path per polygon (even-odd) keeps holes open */
+    const area = (p, mode) => {
+      const st = R.api.boundaryStyle?.(p, mode) || { color: p.stroke || p.fill_hex, weight: p.stroke_width || 2, opacity: 1, fillColor: p.fill_hex, fillOpacity: p.fill_opacity ?? 0.4 };
+      ctx.beginPath();
+      p.rings.forEach((ring) => {
+        ring.forEach(([x, y], i) => { const [px, py] = P(x, y); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
+        ctx.closePath();
       });
-    });
-    /* Undertakings: solid outline, filled in their shade of the BU colour */
+      ctx.globalAlpha = st.fillOpacity;
+      ctx.fillStyle = st.fillColor;
+      ctx.fill("evenodd");
+      ctx.globalAlpha = st.opacity ?? 1;
+      ctx.strokeStyle = st.color;
+      ctx.lineWidth = st.weight;
+      ctx.lineJoin = "round";
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    };
+    data.map.bu_polygons.forEach((b) => area(b, R.network || scopeBus.has(b.bu_name) ? "normal" : "dim"));
     data.map.ut_polygons.forEach((u) => {
       if (!(R.network || scopeBus.has(u.bu_name))) return;
-      const picked = belowBu && scopeUts.has(u.ut_name);
-      u.rings.forEach((ring) => {
-        path(ring);
-        ctx.globalAlpha = picked ? 0.4 : 0.18;
-        ctx.fillStyle = u.fill_hex;
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = picked ? `#${BRAND.ink}` : u.fill_hex;
-        ctx.lineWidth = picked ? 2.2 : 1;
-        ctx.stroke();
-      });
-    });
-    /* BU outlines last so they stay crisp above the UT fills */
-    data.map.bu_polygons.forEach((b) => {
-      b.rings.forEach((ring) => {
-        path(ring);
-        ctx.globalAlpha = buOn(b) ? 1 : 0.35;
-        ctx.strokeStyle = b.fill_hex;
-        ctx.lineWidth = buOn(b) ? 2.4 : 1;
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-      });
+      area(u, belowBu && scopeUts.has(u.ut_name) ? "focus" : "normal");
     });
     const feeders = R.api.getFeedersGeo?.();
     (feeders?.features || []).forEach((f) => {
@@ -1100,6 +1087,9 @@
     download(`IE_${name}_${slug(R)}_${dateTag(R.generated)}.csv`, new Blob([`﻿${lines.join("\r\n")}`], { type: "text/csv;charset=utf-8" }));
   }
 
+  /** KMZ boundary symbology as simplestyle properties (read by geojson.io, QGIS styling expressions, etc.) */
+  const simpleStyle = (p) => ({ fill: p.fill_hex, "fill-opacity": p.fill_opacity ?? 0.4, stroke: p.stroke || p.fill_hex, "stroke-width": p.stroke_width || 2 });
+
   function geojson() {
     const R = reportData();
     const features = [];
@@ -1107,8 +1097,8 @@
       const b = R.bus.find((x) => x.code === p.bu_name) || {};
       features.push({
         type: "Feature",
-        properties: { layer: "Business Unit", business_unit: b.name, undertakings: b.uts, dts_in_filter: b.dts, area_km2: b.area, dts_per_km2: +(+b.density).toFixed(1) },
-        geometry: { type: "MultiPolygon", coordinates: p.rings.map((r) => [r]) },
+        properties: { layer: "Business Unit", business_unit: b.name, undertakings: b.uts, dts_in_filter: b.dts, area_km2: b.area, dts_per_km2: +(+b.density).toFixed(1), ...simpleStyle(p) },
+        geometry: { type: "Polygon", coordinates: p.rings },
       });
     });
     if (!R.network && R.sum.level !== "bu") {
@@ -1116,8 +1106,8 @@
         const u = R.uts.find((x) => x.code === p.ut_name) || {};
         features.push({
           type: "Feature",
-          properties: { layer: "Undertaking", undertaking: u.name, business_unit: u.bu, dts_in_filter: u.dts, register_agreement_pct: u.agree, area_km2: u.area },
-          geometry: { type: "MultiPolygon", coordinates: p.rings.map((r) => [r]) },
+          properties: { layer: "Undertaking", undertaking: u.name, business_unit: u.bu, dts_in_filter: u.dts, register_agreement_pct: u.agree, area_km2: u.area, ...simpleStyle(p) },
+          geometry: { type: "Polygon", coordinates: p.rings },
         });
       });
     }
@@ -1137,12 +1127,13 @@
     const R = reportData();
     const x = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const kmlColor = (hex, a) => { const h = String(hex || "#6b7c90").replace("#", ""); return `${a}${h.slice(4, 6)}${h.slice(2, 4)}${h.slice(0, 2)}`; };
-    const styles = R.data.map.bu_polygons.map((p) => `<Style id="bu-${x(p.bu_name)}"><LineStyle><color>${kmlColor(p.fill_hex, "ff")}</color><width>2</width></LineStyle><PolyStyle><color>${kmlColor(p.fill_hex, "55")}</color></PolyStyle></Style>`).join("");
+    const alpha = (o) => Math.round((o ?? 0.4) * 255).toString(16).padStart(2, "0");
+    const styles = R.data.map.bu_polygons.map((p) => `<Style id="bu-${x(p.bu_name)}"><LineStyle><color>${kmlColor(p.stroke || p.fill_hex, "ff")}</color><width>${p.stroke_width || 2}</width></LineStyle><PolyStyle><color>${kmlColor(p.fill_hex, alpha(p.fill_opacity))}</color></PolyStyle></Style>`).join("");
     const pin = (id, color) => `<Style id="${id}"><IconStyle><color>${color}</color><scale>0.55</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon></IconStyle><LabelStyle><scale>0</scale></LabelStyle></Style>`;
     const ring = (r) => r.map(([lon, lat]) => `${lon},${lat},0`).join(" ");
     const buFolder = R.data.map.bu_polygons.filter((p) => R.sum.bus.includes(p.bu_name)).map((p) => {
       const b = R.bus.find((y) => y.code === p.bu_name) || {};
-      return `<Placemark><name>${x(b.name)}</name><description>${x(`${fmt.format(b.dts || 0)} DTs in filter · ${b.uts} Undertakings · ${fmt1(b.area)} km²`)}</description><styleUrl>#bu-${x(p.bu_name)}</styleUrl><MultiGeometry>${p.rings.map((r) => `<Polygon><outerBoundaryIs><LinearRing><coordinates>${ring(r)}</coordinates></LinearRing></outerBoundaryIs></Polygon>`).join("")}</MultiGeometry></Placemark>`;
+      return `<Placemark><name>${x(b.name)}</name><description>${x(`${fmt.format(b.dts || 0)} DTs in filter · ${b.uts} Undertakings · ${fmt1(b.area)} km²`)}</description><styleUrl>#bu-${x(p.bu_name)}</styleUrl><Polygon><outerBoundaryIs><LinearRing><coordinates>${ring(p.rings[0])}</coordinates></LinearRing></outerBoundaryIs>${p.rings.slice(1).map((r) => `<innerBoundaryIs><LinearRing><coordinates>${ring(r)}</coordinates></LinearRing></innerBoundaryIs>`).join("")}</Polygon></Placemark>`;
     }).join("");
     const byBu = {};
     R.dtRows.forEach((d) => { if (d.lat != null) (byBu[d.bu] || (byBu[d.bu] = [])).push(d); });
@@ -1342,7 +1333,7 @@
     doc.addImage(map.url, "PNG", mx, 70, mw, mh, "covermap", "FAST");
     doc.setFontSize(8);
     doc.setTextColor(170, 182, 198);
-    text("Filtered area · BU and UT areas (solid, filled), 11 kV (blue) and 33 kV (orange) feeders, DTs (public blue, private red), ISS (gold)", mx, 70 + mh + 22, { maxWidth: mw });
+    text("Filtered area · BU areas (dark outline) and UTs (white outline) as in the 2026 KMZ, 11 kV (blue) and 33 kV (orange) feeders, DTs (public blue, private red), ISS (gold)", mx, 70 + mh + 22, { maxWidth: mw });
 
     /* 2 · Executive summary */
     doc.addPage();
@@ -1481,7 +1472,7 @@
       ["DT register", `${fmt.format(R.data.kpis.dt_total)} distribution transformers (public and private) with their 2026 Business Unit, Undertaking, feeder, ownership, capacity, connection and metering status.`],
       ["Register agreement", "Share of DTs inside a 2026 Undertaking polygon whose register Undertaking matches that polygon."],
       ["Reassignments", "DTs whose previous (pre-October 1, 2026) Business Unit differs from their 2026 Business Unit."],
-      ["Map", "Drawn from the 2026 BU / UT polygons, MV feeder network, DT register and ISS locations; the Lagos State outline is the solid gold line."],
+      ["Map", "BU / UT boundaries, labels and 11 / 33 kV feeder routes come from the IE 2026 KMZ exports and use their symbology (BU: dark 4 px outline, 40% fill; UT: white 2 px outline, 55% fill). DTs from the DT register; ISS locations; the Lagos State outline is the solid gold line."],
       ["Privacy", "No customer account identifiers are included."],
     ];
     let ny = 84;

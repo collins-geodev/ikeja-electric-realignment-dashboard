@@ -1575,8 +1575,26 @@
     state.rendered.feeders = true;
   }
 
+  /** Boundary rings are one polygon: the outer ring first, then any holes (Leaflet draws them as holes) */
   function ringsToLatLngs(rings) {
     return rings.map((ring) => ring.map(([lon, lat]) => [lat, lon]));
+  }
+
+  /**
+   * BU / UT symbology from the 2026 KMZ exports (outline colour and width, fill opacity).
+   * "dim" and "focus" vary it for maps that highlight part of the franchise.
+   */
+  function boundaryStyle(p, mode = "normal") {
+    const base = {
+      color: p.stroke || p.fill_hex,
+      weight: p.stroke_width || 2,
+      opacity: 1,
+      fillColor: p.fill_hex,
+      fillOpacity: p.fill_opacity ?? 0.4,
+    };
+    if (mode === "dim") return { ...base, opacity: 0.35, weight: Math.max(1, base.weight / 2), fillOpacity: base.fillOpacity * 0.25 };
+    if (mode === "focus") return { ...base, weight: base.weight + 1, fillOpacity: Math.min(0.8, base.fillOpacity + 0.15) };
+    return base;
   }
 
   const LABEL_ZOOM = { bu: 9, ut: 11 };
@@ -1864,23 +1882,15 @@
     });
 
     buPolys.forEach((b) => {
-      ringsToLatLngs(b.rings).forEach((latlngs) => {
-        L.polygon(latlngs, {
-          color: b.fill_hex, weight: 2, fillColor: b.fill_hex, fillOpacity: 0.18,
-        })
-          .bindPopup(buPopupHtml(b), popupOpts)
-          .addTo(state.layers.bu);
-      });
+      L.polygon(ringsToLatLngs(b.rings), boundaryStyle(b))
+        .bindPopup(buPopupHtml(b), popupOpts)
+        .addTo(state.layers.bu);
     });
 
     utPolys.forEach((u) => {
-      ringsToLatLngs(u.rings).forEach((latlngs) => {
-        L.polygon(latlngs, {
-          color: u.fill_hex, weight: 1.2, fillColor: u.fill_hex, fillOpacity: 0.16,
-        })
-          .bindPopup(utPopupHtml(u), popupOpts)
-          .addTo(state.layers.ut);
-      });
+      L.polygon(ringsToLatLngs(u.rings), boundaryStyle(u))
+        .bindPopup(utPopupHtml(u), popupOpts)
+        .addTo(state.layers.ut);
     });
 
     (state.feedersGeo?.features || []).forEach((feat) => {
@@ -1981,8 +1991,8 @@
     if (legend) {
       legend.innerHTML = `
       <span><i class="legend-swatch" style="background:transparent;outline:2px solid #e8a317"></i>Lagos State</span>
-      ${buPolys.map((b) => `<span><i class="legend-swatch" style="background:${b.fill_hex}"></i>${b.bu_name}</span>`).join("")}
-      <span><i class="legend-swatch" style="background:linear-gradient(90deg,#d89880 0 50%,#801a19 50%)"></i>Undertakings (shades of BU)</span>
+      ${buPolys.map((b) => `<span><i class="legend-swatch legend-bu" style="background:${b.fill_hex};border-color:${b.stroke || "#222"}"></i>${b.bu_name}</span>`).join("")}
+      <span><i class="legend-swatch legend-ut" style="background:linear-gradient(90deg,#d89880 0 50%,#801a19 50%)"></i>Undertakings (white outline)</span>
       <span><i class="legend-swatch" style="background:#5ec8ff"></i>11 kV (live)</span>
       <span><i class="legend-swatch" style="background:#ff7a3d"></i>33 kV (live)</span>
       <span><i class="legend-swatch" style="background:#3d9cf0;border-radius:50%"></i>Public DT</span>
@@ -2551,6 +2561,7 @@
     getLabels: () => state.labels,
     setLagos: (fc) => { state.lagos = fc; if (state.map) redrawMapLayers(); },
     getLagos: () => state.lagos,
+    boundaryStyle,
     setMapTheme,
     refreshChartTheme,
     resetFilters,

@@ -1184,6 +1184,9 @@ button.kpi .value,
   margin-right: 0.35rem;
   vertical-align: middle;
 }
+/* Boundary swatches mirror the KMZ: dark BU outline, white UT outline */
+.legend-swatch.legend-bu { width: 12px; height: 12px; border: 2px solid #222; opacity: 0.85; }
+.legend-swatch.legend-ut { width: 12px; height: 12px; border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(15, 28, 46, 0.35); }
 
 .compare {
   display: grid;
