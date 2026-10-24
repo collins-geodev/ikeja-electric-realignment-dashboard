@@ -236,10 +236,6 @@
         pub: count((d) => !isPriv(d)),
         priv: count(isPriv),
         privMulti: count((d) => String(d.own).toUpperCase() === "PRIVATE MULTIPLE"),
-        connected: count((d) => d.conn === "CONNECTED"),
-        notConnected: count((d) => d.conn === "NOT CONNECTED"),
-        metered: count((d) => d.meter === "METERED"),
-        unmetered: count((d) => d.meter === "UNMETERED"),
         kva: rows.reduce((a, d) => a + (Number(d.cap) || 0), 0),
         caps,
       };
@@ -345,10 +341,6 @@
       { h: "Public", k: "pub", w: 10, n: "#,##0", sum: true },
       { h: "Private", k: "priv", w: 10, n: "#,##0", sum: true },
       { h: "Private (multiple)", k: "privMulti", w: 14, n: "#,##0", sum: true },
-      { h: "Connected", k: "connected", w: 12, n: "#,##0", sum: true },
-      { h: "Not connected", k: "notConnected", w: 13, n: "#,##0", sum: true },
-      { h: "Metered", k: "metered", w: 11, n: "#,##0", sum: true },
-      { h: "Unmetered", k: "unmetered", w: 12, n: "#,##0", sum: true },
       { h: "Installed capacity (kVA)", k: "kva", w: 16, n: "#,##0", sum: true },
     ],
     reassign: [
@@ -535,25 +527,6 @@
           datasets: [
             { label: "Feeders", data: fbRows.map(([, v]) => v.n), backgroundColor: "#1F6FB2", borderRadius: 4 },
             { label: "Length (km)", data: fbRows.map(([, v]) => Math.round(v.len)), backgroundColor: `#${BRAND.gold}`, borderRadius: 4 },
-          ],
-        },
-      }),
-    };
-    const bd = R.breakdown.filter((b) => b.total > 0);
-    charts.service = {
-      title: "Connection and metering status by Business Unit",
-      note: "Share of DTs connected and metered in the register.",
-      ...chartPNG({
-        type: "bar",
-        decimals: 0,
-        suffix: "%",
-        min: 0,
-        max: 100,
-        data: {
-          labels: bd.map((b) => titleCase(b.code)),
-          datasets: [
-            { label: "Connected", data: bd.map((b) => +pctOf(b.connected, b.total).toFixed(0)), backgroundColor: "#2E8B57", borderRadius: 4 },
-            { label: "Metered", data: bd.map((b) => +pctOf(b.metered, b.total).toFixed(0)), backgroundColor: "#0F8B8D", borderRadius: 4 },
           ],
         },
       }),
@@ -753,9 +726,6 @@
     if (R.register && t) {
       const big = R.breakdown.reduce((a, b) => a + b.caps["301–500"] + b.caps[">500"], 0);
       out.push(`Installed capacity totals ${fmt.format(Math.round(R.kva))} kVA; ${fmt1(pctOf(big, t))}% of DTs are rated above 300 kVA.`);
-      const nc = R.breakdown.reduce((a, b) => a + b.notConnected, 0);
-      const um = R.breakdown.reduce((a, b) => a + b.unmetered, 0);
-      out.push(`${fmt1(pctOf(nc, t))}% of DTs are recorded as not connected and ${fmt1(pctOf(um, t))}% as unmetered.`);
     }
     if (R.reassign.length) {
       const moved = R.reassign.reduce((a, r) => a + r.count, 0);
@@ -1023,7 +993,7 @@
       ["Undertakings", "Undertaking totals, agreement and lineage"],
       ["Feeders", "MV feeders with DT load, length and boundary fidelity"],
       ["DT register", "Every distribution transformer in the filter"],
-      ["Ownership & service", "Ownership, connection, metering and capacity by BU"],
+      ["Ownership & capacity", "Ownership and installed capacity by BU"],
       ["Capacity classes", "DT count by kVA class and BU"],
       ["Reassignments", "DTs whose Business Unit changed"],
       ["Charts", "Charts of the figures above"],
@@ -1063,7 +1033,7 @@
     tableSheet(wb, "Feeders", R, COLS.feeders, R.feeders, { description: "Feeders with DTs in the filter, named in the DT register's standard nomenclature. Length and boundary fidelity come from the feeder network where the names match (blank otherwise)." });
     await progress(`Writing ${fmt.format(R.dtRows.length)} DT rows…`);
     tableSheet(wb, "DT register", R, COLS.dts, R.dtRows, { description: "Every distribution transformer inside the filter, from the IE DT register.", totals: false });
-    tableSheet(wb, "Ownership & service", R, COLS.breakdown, R.breakdown, { description: "Ownership, connection, metering and installed capacity by Business Unit." });
+    tableSheet(wb, "Ownership & capacity", R, COLS.breakdown, R.breakdown, { description: "Ownership and installed capacity by Business Unit." });
     tableSheet(wb, "Capacity classes", R, [{ h: "Business Unit", k: "name", w: 26 }, ...R.capBins.map((b) => ({ h: `${b} kVA`, k: b, w: 12, n: "#,##0", sum: true }))],
       R.breakdown.map((b) => ({ name: b.name, ...b.caps })), { description: "Distribution transformers by nameplate capacity class (kVA)." });
     tableSheet(wb, "Reassignments", R, COLS.reassign, R.reassign, { description: "DTs whose previous Business Unit differs from their 2026 Business Unit." });
@@ -1396,25 +1366,24 @@
     chartBox(charts.density, M, 62 + gh + 14, gw, gh);
     chartBox(charts.feeders, M + gw + 14, 62 + gh + 14, gw, gh);
 
-    /* 5 · Service, quality and change */
+    /* 5 · Ownership, quality and change */
     doc.addPage();
-    header("Service, quality and change", "Connection, metering, agreement, reassignments");
-    chartBox(charts.service, M, 62, gw, gh);
-    chartBox(charts.agreement, M + gw + 14, 62, gw, gh);
-    if (charts.reassign) chartBox(charts.reassign, M, 62 + gh + 14, gw, gh);
-    const tx = charts.reassign ? M + gw + 14 : M;
-    sectionTitle("Ownership and service by Business Unit", tx, 62 + gh + 30);
+    header("Ownership, quality and change", "Agreement, reassignments, ownership and capacity");
+    chartBox(charts.agreement, M, 62, gw, gh);
+    if (charts.reassign) chartBox(charts.reassign, M + gw + 14, 62, gw, gh);
+    sectionTitle("Ownership and capacity by Business Unit", M, 62 + gh + 30);
     doc.autoTable({
       startY: 62 + gh + 40,
-      margin: { left: tx, right: M },
-      tableWidth: charts.reassign ? gw : W - 2 * M,
-      head: [["Business Unit", "DTs", "Private", "Not connected", "Unmetered", "kVA"]],
-      body: R.breakdown.map((b) => [pdfText(b.name.replace(/ Business Unit$/, "")), fmt.format(b.total), `${fmt1(pctOf(b.priv, b.total))}%`, `${fmt1(pctOf(b.notConnected, b.total))}%`, `${fmt1(pctOf(b.unmetered, b.total))}%`, fmt.format(b.kva)]),
+      margin: { left: M, right: M },
+      tableWidth: W - 2 * M,
+      head: [["Business Unit", "DTs", "Public", "Private", "Installed capacity (kVA)"]],
+      body: R.breakdown.map((b) => [pdfText(b.name.replace(/ Business Unit$/, "")), fmt.format(b.total), `${fmt1(pctOf(b.pub, b.total))}%`, `${fmt1(pctOf(b.priv, b.total))}%`, fmt.format(b.kva)]),
       theme: "plain",
       styles: { fontSize: 8, cellPadding: 4, textColor: ink, lineColor: rgb(BRAND.line), lineWidth: { bottom: 0.5 } },
       headStyles: { fillColor: red, textColor: 255, fontStyle: "bold" },
       alternateRowStyles: { fillColor: rgb(BRAND.zebra) },
-      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" } },
+      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } },
+      didParseCell: (d) => { if (d.section === "head" && d.column.index > 0) d.cell.styles.halign = "right"; },
     });
 
     /* 6+ · Tables */
