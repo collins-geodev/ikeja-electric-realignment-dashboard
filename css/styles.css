@@ -425,7 +425,7 @@ body {
   right: 0;
   top: calc(100% + 8px);
   z-index: 50;
-  width: min(320px, calc(100vw - 24px));
+  width: min(340px, calc(100vw - 24px));
   /* IE red / gold stripe across the top */
   background: linear-gradient(90deg, #c8452c 0 62%, #e8a317 62% 100%) top / 100% 3px no-repeat, var(--export-menu);
   border: 1px solid var(--line);
@@ -482,6 +482,23 @@ body {
 }
 .export-ico .ico { width: 16px; height: 16px; }
 .export-txt { display: grid; gap: 0.05rem; min-width: 0; }
+/* Formatted Excel download with a plain-CSV chip beside it */
+.export-row { display: flex; align-items: center; gap: 0.25rem; }
+.export-row > button:first-child { flex: 1 1 auto; min-width: 0; }
+.export-menu .export-csv {
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 30px;
+  padding: 0.2rem 0.55rem;
+  margin-right: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font: 600 0.68rem var(--font-body);
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.export-menu .export-csv:hover,
+.export-menu .export-csv:focus-visible { color: var(--accent); border-color: var(--accent); background: rgba(200, 69, 44, 0.08); }
 .export-txt b { font-weight: 600; font-size: 0.86rem; }
 .export-txt small { font-size: 0.72rem; color: var(--muted); }
 
@@ -2173,6 +2190,8 @@ button.kpi .value {
   .chrome-data > .btn,
   .chrome-data > .export-wrap { flex: 1 1 0; }
   .chrome-data .btn { width: 100%; padding: 0 0.6rem; }
+  /* The Export button sits at the left on phones, so open the menu rightwards */
+  .export-menu { left: 0; right: auto; }
   .chrome-exports { flex: 1 1 100%; }
   .chrome-exports .btn { flex: 1 1 0; height: 40px; }
   .chrome-data[hidden] ~ .chrome-exports { flex: 1 1 0; min-width: 0; }

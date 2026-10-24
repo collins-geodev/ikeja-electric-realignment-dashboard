@@ -2492,7 +2492,7 @@
     });
   }
 
-  /** Exports live in js/reports.js (branded Excel / CSV / GeoJSON / KML built from the active filters) */
+  /** Exports live in js/reports.js (branded Excel workbooks and single sheets, plain CSV, GeoJSON / KML built from the active filters) */
   function runExport(kind) {
     const reports = window.IKEDCReports;
     if (!reports) {
@@ -2500,6 +2500,7 @@
       return;
     }
     if (kind === "xlsx") reports.excel({ both: false });
+    else if (kind.startsWith("sheet-")) reports.sheet(kind.slice(6));
     else if (kind.startsWith("csv-")) reports.csv(kind.slice(4));
     else if (kind === "geojson") reports.geojson();
     else if (kind === "kml") reports.kml();
