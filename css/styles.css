@@ -2348,3 +2348,78 @@ body.map-expanded-open .app { z-index: 20000; }
   .feed-reader-actions { width: 100%; }
   .feed-reader-actions .btn { padding-inline: 9px; }
 }
+
+/* ---------- Phone polish ---------- */
+@media (max-width: 767px) {
+  /* Compact header: views, sections, display buttons, then Export · PDF · Excel on one row */
+  .chrome-inner { gap: 0.45rem; }
+  .chrome-utils .btn-icon,
+  .chrome-data .btn,
+  .chrome-exports .btn { height: 40px; min-height: 40px; font-size: 0.8rem; }
+  .chrome-data:not([hidden]) { flex: 1 1 0; }
+  .chrome-data:not([hidden]) ~ .chrome-exports { flex: 2 1 0; min-width: 0; }
+  .chrome-exports { gap: 0.45rem; }
+  .chrome-exports .lbl-full { display: none; }
+  .chrome-exports .lbl-short { display: inline; }
+
+  /* Readable small print */
+  .eyebrow { font-size: 0.7rem; }
+  .combo-label { font-size: 0.72rem; }
+  .card-head p { font-size: 0.82rem; line-height: 1.4; }
+  .kpi .hint { font-size: 0.78rem; }
+
+  /* Comfortable touch targets */
+  .map-layer-filter-btn { min-height: 40px; }
+
+  /* Story chapters: one swipeable row that stays in reach while reading */
+  .story-nav {
+    position: sticky;
+    top: 0;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 14px;
+    margin-inline: -2px;
+  }
+  .story-nav::-webkit-scrollbar { display: none; }
+  /* Fade the trailing edge so more chapters read as swipeable */
+  .story-nav { -webkit-mask-image: linear-gradient(90deg, #000 82%, transparent); mask-image: linear-gradient(90deg, #000 82%, transparent); }
+  .story-nav button,
+  .story-nav a {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 0 0.95rem;
+    font-size: 0.74rem;
+    scroll-snap-align: start;
+  }
+  .story-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+  .story-stats strong { font-size: 1.45rem; }
+  .story-quote { font-size: 1rem; line-height: 1.55; }
+
+  /* Wide tables scroll sideways with the row name pinned */
+  .table-wrap th:first-child,
+  .table-wrap td:first-child,
+  .cov-bu-table th:first-child,
+  .cov-bu-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--bg-card);
+    box-shadow: 1px 0 0 var(--line);
+  }
+  .table-wrap th:first-child,
+  .cov-bu-table th:first-child { z-index: 2; background: var(--th-bg); }
+  .table-wrap td:first-child { max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+  #cov-bu-chips { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cov-bu-table { min-width: 400px; }
+  .cov-bu-table td, .cov-bu-table th { padding-block: 0.6rem; }
+
+  /* Summary KPIs: two across like the Operations strip; the last one spans the row */
+  .cov-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+  .cov-kpis > .cov-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .cov-kpi .value { font-size: 1.55rem; }
+  .cov-kpi .hint { font-size: 0.76rem; line-height: 1.35; }
+}

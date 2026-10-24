@@ -888,11 +888,19 @@
     return true;
   }
 
+  /** Phones: dense charts drop per-bar values (tooltips keep them) and axis names rotate instead of colliding */
+  function phoneScales(scales, count) {
+    if (!window.matchMedia("(max-width: 600px)").matches || !scales?.x) return scales;
+    const ticks = { ...(scales.x.ticks || {}), autoSkip: false, maxRotation: 60, minRotation: count > 4 ? 40 : 0, font: { size: count > 12 ? 10 : 11 } };
+    return { ...scales, x: { ...scales.x, ticks } };
+  }
+  const denseOnPhone = (count) => count > 8 && window.matchMedia("(max-width: 600px)").matches;
+
   function barChart(key, canvasId, labels, datasets, opts = {}) {
     destroyChart(key);
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
-    const showLabels = opts.valueLabels !== false;
+    const showLabels = opts.valueLabels !== false && !denseOnPhone(labels.length);
     state.charts[key] = new Chart(ctx, {
       type: opts.type || "bar",
       data: { labels, datasets },
@@ -917,10 +925,10 @@
             fontSize: opts.labelFontSize || 12,
           },
         },
-        scales: opts.scales || {
+        scales: phoneScales(opts.scales || {
           x: { stacked: !!opts.stacked, grid: { display: false } },
           y: { stacked: !!opts.stacked, beginAtZero: true, ticks: { callback: (v) => fmt.format(v) } },
-        },
+        }, labels.length),
       },
     });
   }

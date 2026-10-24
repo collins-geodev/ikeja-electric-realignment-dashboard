@@ -691,7 +691,11 @@
     if (bounds.length) {
       map.fitBounds(bounds, { padding: [28, 28], maxZoom: 12 });
     }
-    setTimeout(() => map.invalidateSize(), 80);
+    /* Re-fit once the container has its final size (phones lay out after the first fit) */
+    setTimeout(() => {
+      map.invalidateSize();
+      if (bounds.length) map.fitBounds(bounds, { padding: [28, 28], maxZoom: 12 });
+    }, 80);
   }
 
   function buLabel(code) {
@@ -1027,8 +1031,8 @@
       scope.hidden = network;
       scope.innerHTML = network ? "" : `Showing <strong>${sum.label}</strong> — the dashboard filters apply here too. Use Reset to see the whole network.`;
     }
-    const moved = $("#story-moved-count");
-    if (moved) moved.textContent = fmt.format(networkMovedCount(data));
+    const moved = fmt.format(networkMovedCount(data));
+    $$(".js-moved-count").forEach((el) => { el.textContent = moved; });
   }
 
   function markStoryBuCards() {
@@ -1328,6 +1332,13 @@
         onClick: userClick || cfg.options?.onClick,
         events: ["mousemove", "mouseout", "click", "touchstart", "touchmove"],
       };
+      /* Phones: dense bar charts drop per-bar values; axis names rotate instead of colliding */
+      if (cfg.type === "bar" && window.matchMedia("(max-width: 600px)").matches) {
+        const count = cfg.data?.labels?.length || 0;
+        const x = cfg.options.scales?.x;
+        if (x) x.ticks = { ...(x.ticks || {}), autoSkip: false, maxRotation: 60, minRotation: count > 4 ? 40 : 0, font: { size: count > 12 ? 10 : 11 } };
+        if (count > 8 && cfg.options.plugins?.valueLabels) cfg.options.plugins.valueLabels.display = false;
+      }
       experience.storyCharts[id] = new Chart(el, cfg);
     };
 
