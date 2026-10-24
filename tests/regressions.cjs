@@ -47,6 +47,12 @@ function response(){return {headers:{},setHeader(k,v){this.headers[k]=v;},end(bo
   assert.equal(feeds2.channelKeeps({title:'Grid collapse hits power supply in the UK',summary:''},power,{region:'global'}),false);
   assert.equal(feeds2.channelKeeps({title:'TCN restores national grid after collapse in Nigeria',summary:''},power,{region:'global'}),true);
   assert.equal(feeds2.channelKeeps({title:'Geospatial digital twin for city mapping in Germany',summary:''},gis,{region:'global'}),true);
+  assert.equal(feeds2.channelKeeps({title:'How EPIC Sticks Launch At General Mills (GIS) Has Changed Its Investment Story',summary:''},gis,{region:'global'}),false);
+  assert.equal(feeds2.channelKeeps({title:'POWERGRID wins project for 765 kV GIS substation',summary:''},gis,{region:'global'}),false);
+  assert.equal(feeds2.channelKeeps({title:'Esri shares new ArcGIS mapping tools for utilities',summary:''},gis,{region:'global'}),true);
+  const ai=src('google-disco-ai');
+  assert.equal(feeds2.channelKeeps({title:"America's power grid can't keep up with AI boom",summary:''},ai,{region:'global'}),false);
+  assert.equal(feeds2.channelKeeps({title:'Utilities turn to AI and machine learning to predict power distribution outages',summary:''},ai,{region:'global'}),true);
   const ikejaRes=await feeds2.loadSource(src('ikeja'),{text:{},x:{}});
   assert.ok(ikejaRes.items.some((it)=>it.title.startsWith('Ikeja Electric restores')&&it.sourceName==='Ikeja Electric · Punch'));
   assert.ok(!ikejaRes.items.some((it)=>/Super Eagles/.test(it.title)));

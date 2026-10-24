@@ -221,6 +221,17 @@ const TOPIC_KEYWORDS = {
   ],
 };
 
+/* "GIS" is also a stock ticker (General Mills) and gas-insulated switchgear in substations */
+const GEO_NOISE = [
+  "general mills", "(gis)", "nyse:gis", "gas-insulated", "gas insulated", "switchgear", "kv gis",
+  "gis substation", "stock price", "price target", "investment story",
+];
+/* AI tab is about AI used in utilities, not AI's power demand or AI stocks */
+const AI_NOISE = [
+  "ai boom", "ai demand", "demand from ai", "data center", "data centre", "datacenter", "stocks",
+  "price target", "can't keep up", "cannot keep up", "overwhelmed",
+];
+
 const BLOCK_KEYWORDS = [
   "waec", "hotel", "football", "premier league", "celebrity", "naira redesign",
   "crypto pump", "betting", "nollywood", "transfer window",
@@ -244,8 +255,10 @@ function isOnTopic(it, topic) {
     ...TOPIC_KEYWORDS.gis,
     ...TOPIC_KEYWORDS.geoai,
   ];
+  if ((topic === "gis" || topic === "geoai") && GEO_NOISE.some((k) => blob.includes(k))) return false;
   // For AI/ML DisCo news, require an AI/ML signal AND a power/DisCo signal
   if (topic === "disco-ai") {
+    if (AI_NOISE.some((k) => blob.includes(k))) return false;
     const aiHit = ["artificial intelligence", "machine learning", " ai ", " ml ", "smart meter", "predictive", "analytics", "digital twin"].some((k) => blob.includes(k.trim()) || blob.includes(k));
     const powerHit = ["disco", "ikedc", "ikeja", "electric", "power", "distribution", "grid", "nerc", "tariff"].some((k) => blob.includes(k));
     return aiHit && powerHit;
