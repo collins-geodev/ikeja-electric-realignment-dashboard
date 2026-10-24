@@ -591,37 +591,45 @@
         path(ring);
         ctx.fillStyle = "#FFFFFF";
         ctx.fill();
-        ctx.setLineDash([8, 6]);
         ctx.strokeStyle = `#${BRAND.gold}`;
         ctx.lineWidth = 2;
         ctx.stroke();
-        ctx.setLineDash([]);
       }));
     });
+    const buOn = (b) => R.network || scopeBus.has(b.bu_name);
     data.map.bu_polygons.forEach((b) => {
-      const on = R.network || scopeBus.has(b.bu_name);
       b.rings.forEach((ring) => {
         path(ring);
-        ctx.globalAlpha = on ? 0.3 : 0.08;
+        ctx.globalAlpha = buOn(b) ? 0.3 : 0.08;
         ctx.fillStyle = b.fill_hex;
         ctx.fill();
-        ctx.globalAlpha = on ? 1 : 0.35;
-        ctx.strokeStyle = b.fill_hex;
-        ctx.lineWidth = on ? 2.4 : 1;
-        ctx.stroke();
         ctx.globalAlpha = 1;
       });
     });
+    /* Undertakings: solid outline, filled in their shade of the BU colour */
     data.map.ut_polygons.forEach((u) => {
       if (!(R.network || scopeBus.has(u.bu_name))) return;
       const picked = belowBu && scopeUts.has(u.ut_name);
       u.rings.forEach((ring) => {
         path(ring);
-        ctx.setLineDash(picked ? [] : [4, 4]);
-        ctx.strokeStyle = picked ? `#${BRAND.ink}` : "rgba(15,28,46,0.35)";
-        ctx.lineWidth = picked ? 2.2 : 0.8;
+        ctx.globalAlpha = picked ? 0.4 : 0.18;
+        ctx.fillStyle = u.fill_hex;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = picked ? `#${BRAND.ink}` : u.fill_hex;
+        ctx.lineWidth = picked ? 2.2 : 1;
         ctx.stroke();
-        ctx.setLineDash([]);
+      });
+    });
+    /* BU outlines last so they stay crisp above the UT fills */
+    data.map.bu_polygons.forEach((b) => {
+      b.rings.forEach((ring) => {
+        path(ring);
+        ctx.globalAlpha = buOn(b) ? 1 : 0.35;
+        ctx.strokeStyle = b.fill_hex;
+        ctx.lineWidth = buOn(b) ? 2.4 : 1;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
       });
     });
     const feeders = R.api.getFeedersGeo?.();
@@ -1334,7 +1342,7 @@
     doc.addImage(map.url, "PNG", mx, 70, mw, mh, "covermap", "FAST");
     doc.setFontSize(8);
     doc.setTextColor(170, 182, 198);
-    text("Filtered area · BU fills, UT outlines, 11 kV (blue) and 33 kV (orange) feeders, DTs (public blue, private red), ISS (gold)", mx, 70 + mh + 22, { maxWidth: mw });
+    text("Filtered area · BU and UT areas (solid, filled), 11 kV (blue) and 33 kV (orange) feeders, DTs (public blue, private red), ISS (gold)", mx, 70 + mh + 22, { maxWidth: mw });
 
     /* 2 · Executive summary */
     doc.addPage();
@@ -1473,7 +1481,7 @@
       ["DT register", `${fmt.format(R.data.kpis.dt_total)} distribution transformers (public and private) with their 2026 Business Unit, Undertaking, feeder, ownership, capacity, connection and metering status.`],
       ["Register agreement", "Share of DTs inside a 2026 Undertaking polygon whose register Undertaking matches that polygon."],
       ["Reassignments", "DTs whose previous (pre-October 1, 2026) Business Unit differs from their 2026 Business Unit."],
-      ["Map", "Drawn from the 2026 BU / UT polygons, MV feeder network, DT register and ISS locations; the Lagos State outline is dashed."],
+      ["Map", "Drawn from the 2026 BU / UT polygons, MV feeder network, DT register and ISS locations; the Lagos State outline is the solid gold line."],
       ["Privacy", "No customer account identifiers are included."],
     ];
     let ny = 84;

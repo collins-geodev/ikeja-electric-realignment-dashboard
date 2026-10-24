@@ -561,7 +561,7 @@
     const bounds = [];
     if (experience.lagos?.features?.length) {
       L.geoJSON(experience.lagos, {
-        style: { color: "#f0b429", weight: 2.5, fillOpacity: 0.02, dashArray: "6 4" },
+        style: { color: "#f0b429", weight: 2.5, fillOpacity: 0.02 },
       }).addTo(Lyr.lagos);
     }
 
@@ -593,7 +593,7 @@
         const latlngs = ring.map(([lon, lat]) => [lat, lon]);
         if (picked) latlngs.forEach((ll) => bounds.push(ll));
         L.polygon(latlngs, {
-          color: u.fill_hex, weight: picked ? 2 : 1, fillOpacity: picked ? 0.12 : 0.04, dashArray: "4 4",
+          color: u.fill_hex, weight: picked ? 2.2 : 1.2, fillColor: u.fill_hex, fillOpacity: picked ? 0.3 : 0.16,
         })
           .bindPopup(pop?.ut?.(u) || `<strong>${u.ut_name}</strong> (${buLabel(u.bu_name)})`, popOpts)
           .addTo(Lyr.ut);
@@ -1003,6 +1003,13 @@
         ? { fillOpacity: on ? 0.4 : 0.08, opacity: on ? 1 : 0.35, weight: on ? 3 : 1 }
         : { fillOpacity: 0.28, opacity: 1, weight: 2 });
     });
+    const focusUt = experience.storyFocus?.ut;
+    (map._ikedcUtPolys || []).forEach(({ bu, ut, layer }) => {
+      const on = !shapes || (focusUt ? ut === focusUt : shapes.bus.includes(bu));
+      layer.setStyle(shapes
+        ? { fillOpacity: on ? 0.24 : 0.04, opacity: on ? 1 : 0.3, weight: focusUt && on ? 2.6 : 1.2 }
+        : { fillOpacity: 0.16, opacity: 1, weight: 1.2 });
+    });
     const bounds = shapes ? L.latLngBounds(ringsToLatLngs(shapes.rings).flat()) : map._ikedcOverview;
     if (!bounds?.isValid?.()) return;
     const opts = { padding: [28, 28], maxZoom: shapes && !experience.storyFocus?.all ? 13 : 12 };
@@ -1240,6 +1247,7 @@
 
     const layers = {
       bus: L.layerGroup(),
+      uts: L.layerGroup(),
       feeders11: L.layerGroup(),
       feeders33: L.layerGroup(),
       dtsPublic: L.layerGroup(),
@@ -1249,6 +1257,7 @@
     };
     map._ikedcLayers = layers;
     map._ikedcBuPolys = [];
+    map._ikedcUtPolys = [];
     map._ikedcDtRenderer = L.canvas({ padding: 0.5 });
     map._ikedcFeederRenderer = L.svg({ padding: 0.35 });
 
@@ -1271,10 +1280,29 @@
       });
     });
 
+    /* Undertakings sit above their BU, filled in a shade of the BU colour */
+    (data.map.ut_polygons || []).forEach((u) => {
+      const name = window.IKEDC?.utDisplayName?.(u.ut_name) || u.ut_name;
+      (u.rings || []).forEach((ring) => {
+        const poly = L.polygon(ring.map(([lon, lat]) => [lat, lon]), {
+          color: u.fill_hex, weight: 1.2, fillColor: u.fill_hex, fillOpacity: 0.16,
+        })
+          .bindPopup(window.IKEDC?.popupHtml?.ut?.(u) || `<strong>${name}</strong> (${buLabel(u.bu_name)})`, window.IKEDC?.popupOpts || { maxWidth: 360 })
+          .on("click", () => {
+            window.IKEDC?.setFilters?.({ bus: [u.bu_name], uts: [u.ut_name], feeders: [], dts: [] });
+            applyStoryMapFocus({ ut: u.ut_name });
+            storyStatus(`Focused · ${name} (${buLabel(u.bu_name)})`);
+          })
+          .addTo(layers.uts);
+        map._ikedcUtPolys.push({ bu: u.bu_name, ut: u.ut_name, layer: poly });
+      });
+    });
+
     fillStoryAssetLayers(map, data);
 
     /* All asset layers on by default (incl. DTs) — layer control toggles visibility */
     layers.bus.addTo(map);
+    layers.uts.addTo(map);
     layers.feeders11.addTo(map);
     layers.feeders33.addTo(map);
     layers.dtsPublic.addTo(map);
@@ -1287,6 +1315,7 @@
     const bases = storyBases;
     const overlays = {
       "Business Units": layers.bus,
+      "Undertakings": layers.uts,
       "Feeders 11 kV": layers.feeders11,
       "Feeders 33 kV": layers.feeders33,
       "Public DTs": layers.dtsPublic,
