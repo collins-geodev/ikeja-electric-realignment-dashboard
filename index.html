@@ -91,7 +91,7 @@
           <button type="button" class="btn btn-ghost btn-icon" id="btn-audio" title="Play instrumental" aria-label="Play instrumental" aria-pressed="false">
             <svg class="ico ico-audio-off" aria-hidden="true"><use href="#i-music"/></svg>
             <svg class="ico ico-audio-on" aria-hidden="true"><use href="#i-mute"/></svg>
-            <span class="btn-label">Play instrumental</span>
+            <span class="btn-label">Music</span>
           </button>
         </div>
         <span class="chrome-divider" aria-hidden="true"></span>
@@ -478,7 +478,7 @@
         every transformer, Undertaking, and boundary reassigned, checked, and redrawn.
       </p>
       <blockquote class="story-quote">
-        2,717 transformers changed Business Unit. 54 Undertakings became 38. And every one of the 20,789 transformers now has a clear home.
+        <span class="js-moved-count">2,673</span> transformers changed Business Unit. 54 Undertakings became 38. And every one of the 20,789 transformers now has a clear home.
       </blockquote>
       <div class="story-cta-row" style="justify-content:center">
         <button type="button" class="btn btn-primary" data-goto="intelligence">Open intelligence dashboard</button>
@@ -523,6 +523,7 @@
         <li><strong>Insight</strong> — Ikeja and Akowonjo absorb the heaviest urban load; Ikorodu dominates territory by area.</li>
       </ul>
       <div class="story-stats" id="story-stats"></div>
+      <p class="story-scope" id="story-scope" hidden></p>
       <div class="story-split-charts" style="margin-top:1.1rem">
         <div class="chart-box h-260"><canvas id="story-chart-glance-bu"></canvas></div>
         <div class="chart-box h-260"><canvas id="story-chart-glance-feeders"></canvas></div>
@@ -538,13 +539,13 @@
     <section class="story-panel" data-story-panel="before" role="tabpanel" id="story-before" hidden>
       <h2>Before and after</h2>
       <p>
-        Pre-2026 the franchise ran six Business Units and 54 Undertakings. The 2026 realignment dissolved Abule Egba,
+        Pre-October 1, 2026, the franchise ran six Business Units and 54 Undertakings. The 2026 realignment dissolved Abule Egba,
         absorbed its service areas into neighbouring BUs (chiefly Ikeja and Akowonjo), and consolidated Oshodi and Shomolu
         from 11 Undertakings each down to 6 — producing five contiguous 2026 territories and 38 Undertakings.
       </p>
       <ul class="story-insight-list">
         <li><strong>Context</strong> — Legacy six-BU geography created overlapping operational hand-offs at Abule Egba’s edges.</li>
-        <li><strong>What changed</strong> — 2,717 transformers changed Business Unit; UT history fields preserve pre-2026 ancestry.</li>
+        <li><strong>What changed</strong> — <span class="js-moved-count" id="story-moved-count">2,673</span> transformers changed Business Unit; UT history fields preserve pre-October 1, 2026 ancestry.</li>
         <li><strong>How to interpret</strong> — Bars compare structure counts, not customer accounts; focus on organisational geometry.</li>
         <li><strong>Insight</strong> — Consolidation reduced UT count while Ikeja grew capacity (8 → 10 UTs) as the urban core.</li>
       </ul>
@@ -658,7 +659,7 @@
       </div>
       <div class="story-cards" style="margin-top:1rem">
         <article><h3>Tools</h3><p>QGIS / ArcGIS Pro for geometry · curated JSON for the Vercel dashboard · Leaflet + Chart.js for the story.</p></article>
-        <article><h3>Governance</h3><p>Lineage fields on UTs preserve pre-2026 ancestry for audit and field briefings.</p></article>
+        <article><h3>Governance</h3><p>Lineage fields on UTs preserve pre-October 1, 2026 ancestry for audit and field briefings.</p></article>
         <article><h3>Privacy</h3><p>No customer account identifiers in published map or analytics layers.</p></article>
       </div>
     </section>

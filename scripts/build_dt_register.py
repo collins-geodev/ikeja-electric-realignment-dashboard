@@ -60,10 +60,30 @@ def parse(path: str) -> list[dict]:
     return rows
 
 
+def feeder_key(name: str) -> str:
+    return re.sub(r"\s+", " ", name).strip().lower()
+
+
+def canonical_feeders(rows: list[dict]) -> dict[str, str]:
+    """The register spells some feeders several ways (AGBOWA / Agbowa): map each to its most used spelling."""
+    counts: dict[str, dict[str, int]] = {}
+    for r in rows:
+        spellings = counts.setdefault(feeder_key(r["feeder"]), {})
+        spellings[r["feeder"]] = spellings.get(r["feeder"], 0) + 1
+    return {
+        spelling: max(spellings, key=lambda s: (spellings[s], s))
+        for spellings in counts.values()
+        for spelling in spellings
+    }
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         raise SystemExit(__doc__)
     rows = [r for path in sys.argv[1:] for r in parse(path)]
+    canon = canonical_feeders(rows)
+    for r in rows:
+        r["feeder"] = canon[r["feeder"]]
     dicts = {c: sorted({r[c] for r in rows}) for c in CATEGORICAL}
     index = {c: {v: i for i, v in enumerate(vals)} for c, vals in dicts.items()}
     encoded = [[index[f][r[f]] if f in index else r[f] for f in FIELDS] for r in rows]

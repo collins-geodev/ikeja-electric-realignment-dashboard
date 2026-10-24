@@ -247,7 +247,7 @@ body {
   border-color: rgba(240, 180, 41, 0.45);
   background: rgba(240, 180, 41, 0.08);
 }
-.chrome-utils .btn-label { display: none; }
+.chrome-utils .btn-label { display: inline; }
 #btn-audio[aria-pressed="true"] {
   color: var(--accent);
   border-color: rgba(240, 180, 41, 0.45);
@@ -1570,6 +1570,7 @@ button.kpi .value {
   box-shadow: inset 0 0 0 1px rgba(232, 163, 23, 0.28);
 }
 .chart-box { cursor: pointer; }
+.cell-sub { color: var(--muted); font-size: 0.78em; white-space: nowrap; }
 #ut-table tbody tr,
 #feeder-table tbody tr,
 #story-bu-table tbody tr {
@@ -1871,6 +1872,15 @@ button.kpi .value {
   transition: transform 0.2s ease, border-color 0.2s ease;
 }
 .story-bu-card:hover { transform: translateY(-2px); }
+.story-bu-card.active { outline: 2px solid var(--bu-color, var(--accent)); outline-offset: 2px; }
+.story-scope {
+  margin: 0.75rem auto 0;
+  max-width: 46rem;
+  text-align: center;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+.story-scope strong { color: var(--text); }
 .story-bu-card h3 { margin: 0 0 0.35rem; font-size: 1.02rem; color: var(--text); }
 .story-bu-card p { margin: 0; color: var(--muted); font-size: 0.86rem; line-height: 1.45; }
 .story-cards {
@@ -2037,7 +2047,6 @@ button.kpi .value {
 }
 @media (min-width: 1024px) and (max-width: 1279px) {
   .chrome-utils .btn-icon { padding: 0 0.8rem; }
-  .chrome-utils .btn-label { display: inline; }
 }
 @media (max-width: 899px) {
   .chrome-tabs .ico { display: none; }
@@ -2076,6 +2085,14 @@ button.kpi .value {
     gap: 0.5rem;
   }
   .chrome-utils .btn-icon { padding: 0 0.6rem; }
+  /* Named Reset / theme / music buttons get their own row of equal columns */
+  .chrome-utils {
+    flex: 1 1 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .chrome-utils .btn-icon { width: 100%; min-width: 0; }
+  .chrome-utils .btn-label { overflow: hidden; text-overflow: ellipsis; }
   .chrome-data { flex: 1 1 0; min-width: 0; margin-left: 0; }
   .chrome-exports { margin-left: 0; }
   .chrome-data > .btn,
@@ -2330,4 +2347,79 @@ body.map-expanded-open .app { z-index: 20000; }
   .masthead .brand-logo { width: 82px; }
   .feed-reader-actions { width: 100%; }
   .feed-reader-actions .btn { padding-inline: 9px; }
+}
+
+/* ---------- Phone polish ---------- */
+@media (max-width: 767px) {
+  /* Compact header: views, sections, display buttons, then Export · PDF · Excel on one row */
+  .chrome-inner { gap: 0.45rem; }
+  .chrome-utils .btn-icon,
+  .chrome-data .btn,
+  .chrome-exports .btn { height: 40px; min-height: 40px; font-size: 0.8rem; }
+  .chrome-data:not([hidden]) { flex: 1 1 0; }
+  .chrome-data:not([hidden]) ~ .chrome-exports { flex: 2 1 0; min-width: 0; }
+  .chrome-exports { gap: 0.45rem; }
+  .chrome-exports .lbl-full { display: none; }
+  .chrome-exports .lbl-short { display: inline; }
+
+  /* Readable small print */
+  .eyebrow { font-size: 0.7rem; }
+  .combo-label { font-size: 0.72rem; }
+  .card-head p { font-size: 0.82rem; line-height: 1.4; }
+  .kpi .hint { font-size: 0.78rem; }
+
+  /* Comfortable touch targets */
+  .map-layer-filter-btn { min-height: 40px; }
+
+  /* Story chapters: one swipeable row that stays in reach while reading */
+  .story-nav {
+    position: sticky;
+    top: 0;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 14px;
+    margin-inline: -2px;
+  }
+  .story-nav::-webkit-scrollbar { display: none; }
+  /* Fade the trailing edge so more chapters read as swipeable */
+  .story-nav { -webkit-mask-image: linear-gradient(90deg, #000 82%, transparent); mask-image: linear-gradient(90deg, #000 82%, transparent); }
+  .story-nav button,
+  .story-nav a {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 0 0.95rem;
+    font-size: 0.74rem;
+    scroll-snap-align: start;
+  }
+  .story-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+  .story-stats strong { font-size: 1.45rem; }
+  .story-quote { font-size: 1rem; line-height: 1.55; }
+
+  /* Wide tables scroll sideways with the row name pinned */
+  .table-wrap th:first-child,
+  .table-wrap td:first-child,
+  .cov-bu-table th:first-child,
+  .cov-bu-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--bg-card);
+    box-shadow: 1px 0 0 var(--line);
+  }
+  .table-wrap th:first-child,
+  .cov-bu-table th:first-child { z-index: 2; background: var(--th-bg); }
+  .table-wrap td:first-child { max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+  #cov-bu-chips { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cov-bu-table { min-width: 400px; }
+  .cov-bu-table td, .cov-bu-table th { padding-block: 0.6rem; }
+
+  /* Summary KPIs: two across like the Operations strip; the last one spans the row */
+  .cov-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+  .cov-kpis > .cov-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .cov-kpi .value { font-size: 1.55rem; }
+  .cov-kpi .hint { font-size: 0.76rem; line-height: 1.35; }
 }
