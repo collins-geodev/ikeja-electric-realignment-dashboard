@@ -417,9 +417,7 @@
         feederMetaFor(name).forEach((f) => { uts.push(f.new_ut); bus.push(f.new_bu); });
         (sampleByFeeder().get(name) || []).forEach((d) => { uts.push(d.ut); bus.push(d.bu); });
       });
-      /* The register spells some feeders two ways (AGBOWA / Agbowa): count them once */
-      const distinct = uniq(state.feeders.map((f) => f.toLowerCase()));
-      label = distinct.length === 1 ? `Feeder ${feederDisplayName(state.feeders[0])}` : `${distinct.length} selected feeders`;
+      label = state.feeders.length === 1 ? `Feeder ${feederDisplayName(state.feeders[0])}` : `${state.feeders.length} selected feeders`;
     } else if (!empty(state.uts)) {
       level = "ut";
       uts = state.uts.slice();
