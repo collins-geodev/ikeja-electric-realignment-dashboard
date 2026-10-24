@@ -171,6 +171,8 @@
 
   /* ---------- View switching ---------- */
   function showView(view) {
+    /* Opening the Story map from another view starts on the franchise overview chapter */
+    if (view === "story" && experience.view !== "story") experience.storyTab = "glance";
     experience.view = view;
     $$(".app-view").forEach((el) => {
       el.hidden = el.dataset.view !== view;
@@ -907,7 +909,7 @@
         try { m.invalidateSize(); } catch (_) { /* ignore */ }
       });
       if (id === "feeds") window.IKEDCFeeds?.mount?.("story-feed", { limit: 14 });
-      if (id === "before" || id === "glance" || id === "quality") {
+      if (STORY_MAP_HOSTS[id]) {
         const data = window.IKEDC?.getData?.();
         if (data) ensureStoryMaps(data);
       }
@@ -936,42 +938,109 @@
     el.hidden = !msg;
   }
 
-  function applyStoryMapFocus(buName) {
-    experience.storyFocusBu = buName || null;
+  /* Every Story chapter map: container + its layer-filter host */
+  const STORY_MAP_HOSTS = {
+    glance: ["#story-map-glance", "story-layers-glance"],
+    before: ["#story-map", "story-layers-before"],
+    bus: ["#story-map-bus", "story-layers-bus"],
+    workload: ["#story-map-workload", "story-layers-workload"],
+    quality: ["#story-map-quality", "story-layers-quality"],
+    method: ["#story-map-method", "story-layers-method"],
+  };
+
+  const ringsToLatLngs = (rings) => (rings || []).map((ring) => ring.map(([lon, lat]) => [lat, lon]));
+
+  /** Area for a Story focus: { bu } / { ut } / { all } (every BU); null = whole franchise, no highlight */
+  function storyFocusShapes(target) {
+    const data = window.IKEDC?.getData?.();
+    if (!data?.map || !target) return null;
+    if (target.ut) {
+      const u = (data.map.ut_polygons || []).find((p) => p.ut_name === target.ut);
+      if (u) return { rings: u.rings, color: u.fill_hex || u.bu_hex || "#ffd56a", bus: [u.bu_name] };
+    }
+    const bus = target.all ? data.map.bu_polygons : data.map.bu_polygons.filter((p) => p.bu_name === target.bu);
+    if (!bus.length) return null;
+    return { rings: bus.flatMap((b) => b.rings), color: bus.length === 1 ? bus[0].fill_hex : "#ffd56a", bus: bus.map((b) => b.bu_name) };
+  }
+
+  /** Pulse the focus area in and out a few times, then remove it */
+  function flashStoryArea(map, shapes) {
+    if (map._ikedcFlash) map.removeLayer(map._ikedcFlash);
+    const layer = L.polygon(ringsToLatLngs(shapes.rings).map((ring) => [ring]), {
+      color: "#ffffff",
+      weight: 4,
+      fillColor: shapes.color,
+      fillOpacity: 0.4,
+      className: "story-flash",
+      interactive: false,
+    }).addTo(map);
+    map._ikedcFlash = layer;
+    setTimeout(() => {
+      if (map._ikedcFlash !== layer) return;
+      map.removeLayer(layer);
+      map._ikedcFlash = null;
+    }, 3400);
+  }
+
+  /**
+   * Frame a Story map on the current focus (or the whole franchise) once it is visible.
+   * Hidden maps (other chapters, Story view not yet shown) keep the request until they appear.
+   */
+  function frameStoryMap(map, { animate = false, flash = false, tries = 0 } = {}) {
+    if (!map) return;
+    const size = map.getSize();
+    if (!size.x || !size.y) {
+      map._ikedcFramePending = true;
+      if (tries < 30) requestAnimationFrame(() => frameStoryMap(map, { animate, flash, tries: tries + 1 }));
+      return;
+    }
+    map._ikedcFramePending = false;
+    map.invalidateSize();
+    const shapes = storyFocusShapes(experience.storyFocus);
+    (map._ikedcBuPolys || []).forEach(({ bu, layer }) => {
+      const on = !shapes || shapes.bus.includes(bu);
+      layer.setStyle(shapes
+        ? { fillOpacity: on ? 0.4 : 0.08, opacity: on ? 1 : 0.35, weight: on ? 3 : 1 }
+        : { fillOpacity: 0.28, opacity: 1, weight: 2 });
+    });
+    const bounds = shapes ? L.latLngBounds(ringsToLatLngs(shapes.rings).flat()) : map._ikedcOverview;
+    if (!bounds?.isValid?.()) return;
+    const opts = { padding: [28, 28], maxZoom: shapes && !experience.storyFocus?.all ? 13 : 12 };
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (animate && !reduceMotion) {
+      map.flyToBounds(bounds, { ...opts, duration: 1.1 });
+      if (flash && shapes) map.once("moveend", () => flashStoryArea(map, shapes));
+    } else {
+      map.fitBounds(bounds, { ...opts, animate: false });
+      if (flash && shapes) flashStoryArea(map, shapes);
+    }
+  }
+
+  /**
+   * Zoom the Story maps to a BU / UT (or back to the franchise). A click animates the
+   * open chapter's map and flashes the area; quiet calls (filter sync) only re-frame.
+   */
+  function applyStoryMapFocus(target, { quiet = false } = {}) {
+    const t = typeof target === "string" ? { bu: target } : (target || null);
+    const key = JSON.stringify(t);
+    if (quiet && key === experience.storyFocusKey) return;
+    experience.storyFocusKey = key;
+    experience.storyFocus = t;
+    experience.storyFocusBu = t?.bu || null;
+    const active = experience.storyMaps[experience.storyTab];
     Object.values(experience.storyMaps).forEach((map) => {
       if (!map) return;
-      const focusBounds = [];
-      map.eachLayer((layer) => {
-        if (!layer.getLatLngs || !layer.setStyle) return;
-        const tip = layer.getTooltip?.()?.getContent?.() || "";
-        const name = String(tip).replace(/<[^>]+>/g, "").trim();
-        const match = buName && (
-          name === buName ||
-          name.toUpperCase().includes(String(buName).toUpperCase()) ||
-          buLabel(buName) === name
-        );
-        if (!buName) {
-          layer.setStyle({ fillOpacity: 0.32, opacity: 1, weight: 2 });
-          return;
-        }
-        layer.setStyle({
-          fillOpacity: match ? 0.55 : 0.08,
-          opacity: match ? 1 : 0.35,
-          weight: match ? 3 : 1,
-        });
-        if (match && layer.getBounds) {
-          try { focusBounds.push(layer.getBounds()); } catch (_) { /* ignore */ }
-        }
-      });
-      if (focusBounds.length) {
-        try {
-          const b = focusBounds.reduce((acc, cur) => acc.extend(cur), focusBounds[0]);
-          map.fitBounds(b, { padding: [28, 28], maxZoom: 12 });
-        } catch (_) { /* ignore */ }
-      }
-      try { map.invalidateSize(); } catch (_) { /* ignore */ }
+      const live = !quiet && map === active;
+      frameStoryMap(map, { animate: live, flash: live && !!t });
     });
+    /* Charts sit below the map: bring it into view so the zoom is seen */
+    if (!quiet && active && experience.view === "story") {
+      const el = active.getContainer();
+      const r = el.getBoundingClientRect();
+      if (r.top < 0 || r.bottom > window.innerHeight) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
   }
+
 
   function initStory() {
     const data = window.IKEDC?.getData?.();
@@ -1002,6 +1071,7 @@
       wireStoryTabs();
       initStoryCharts(data);
       markStoryBuCards();
+      applyStoryMapFocus(storyTargetFromFilters(), { quiet: true });
     } else if (experience.storyDirty) {
       refreshStoryForFilters();
     } else {
@@ -1056,8 +1126,15 @@
     renderStoryStats(data);
     markStoryBuCards();
     initStoryCharts(data);
+    applyStoryMapFocus(storyTargetFromFilters(), { quiet: true });
+  }
+
+  /** The map focus the shared filters imply: one UT, else one BU, else the whole franchise */
+  function storyTargetFromFilters() {
     const { sum, network } = viewScope();
-    applyStoryMapFocus(!network && sum.bus.length === 1 ? sum.bus[0] : null);
+    if (network) return null;
+    if (sum.level !== "bu" && sum.uts.length === 1) return { ut: sum.uts[0] };
+    return sum.bus.length === 1 ? { bu: sum.bus[0] } : null;
   }
 
   function clearLayerGroup(group) {
@@ -1142,6 +1219,7 @@
       fillStoryAssetLayers(map, data);
       setTimeout(() => {
         try { map.invalidateSize(); } catch (_) { /* ignore */ }
+        if (map._ikedcFramePending) frameStoryMap(map);
       }, 60);
       return map;
     }
@@ -1170,6 +1248,7 @@
       tcn: L.layerGroup(),
     };
     map._ikedcLayers = layers;
+    map._ikedcBuPolys = [];
     map._ikedcDtRenderer = L.canvas({ padding: 0.5 });
     map._ikedcFeederRenderer = L.svg({ padding: 0.35 });
 
@@ -1177,7 +1256,7 @@
     (data.map.bu_polygons || []).forEach((b) => {
       (b.rings || []).forEach((ring) => {
         const latlngs = ring.map(([lon, lat]) => [lat, lon]);
-        L.polygon(latlngs, {
+        const poly = L.polygon(latlngs, {
           color: b.fill_hex, weight: 2, fillColor: b.fill_hex, fillOpacity: 0.28,
         })
           .bindPopup(window.IKEDC?.popupHtml?.bu?.(b) || buLabel(b.bu_name), window.IKEDC?.popupOpts || { maxWidth: 360 })
@@ -1187,6 +1266,7 @@
             storyStatus(`Focused · ${buLabel(b.bu_name)}`);
           })
           .addTo(layers.bus);
+        map._ikedcBuPolys.push({ bu: b.bu_name, layer: poly });
         latlngs.forEach((ll) => bounds.push(ll));
       });
     });
@@ -1202,11 +1282,7 @@
     layers.iss.addTo(map);
     layers.tcn.addTo(map);
 
-    const storyHostId = {
-      glance: "story-layers-glance",
-      before: "story-layers-before",
-      quality: "story-layers-quality",
-    }[key];
+    const storyHostId = STORY_MAP_HOSTS[key]?.[1];
     const storyHost = storyHostId ? document.getElementById(storyHostId) : null;
     const bases = storyBases;
     const overlays = {
@@ -1245,12 +1321,9 @@
     };
     map.on("zoomend", sync);
     sync();
-    const fitOverview = () => {
-      map.invalidateSize();
-      if (bounds.length) map.fitBounds(bounds, { padding: [24, 24], maxZoom: 12, animate: false });
-    };
-    // Fit after the StoryMap panel is visible and has its responsive dimensions.
-    requestAnimationFrame(fitOverview);
+    /* Default view: the whole franchise on hybrid satellite (or the current focus), framed once visible */
+    map._ikedcOverview = bounds.length ? L.latLngBounds(bounds) : null;
+    requestAnimationFrame(() => frameStoryMap(map));
     experience.storyMaps[key] = map;
     if (key === "before") experience.storyMap = map;
     return map;
@@ -1258,18 +1331,11 @@
 
   function ensureStoryMaps(data) {
     if (!data) return;
-    const tab = experience.storyTab || "glance";
-    if (tab === "glance") {
-      const glance = $("#story-map-glance");
-      if (glance) paintStoryMap(glance, data, "glance");
-    } else if (tab === "before") {
-      const before = $("#story-map");
-      if (before) paintStoryMap(before, data, "before");
-    } else if (tab === "quality") {
-      const quality = $("#story-map-quality");
-      if (quality) paintStoryMap(quality, data, "quality");
-    }
+    const host = STORY_MAP_HOSTS[experience.storyTab || "glance"];
+    const el = host && $(host[0]);
+    if (el) paintStoryMap(el, data, experience.storyTab || "glance");
   }
+
 
   /** Called after feeders.geojson / labels load so Story maps pick up assets */
   function refreshStoryMapAssets() {
@@ -1363,15 +1429,18 @@
       const cur = window.IKEDC?.getFilters?.();
       const next = cur?.dtOwn === label ? null : label;
       window.IKEDC?.setFilters?.({ dtOwn: next });
+      /* Ownership has no area of its own: re-fly to the current area (or every BU) and flash it */
+      applyStoryMapFocus(experience.storyFocus || { all: true });
       storyStatus(next ? `Filtered DTs · ${next}` : "Ownership filter cleared");
     };
 
     const storyFilterUt = (utName) => {
       if (!utName) return;
       window.IKEDC?.applyBuFilterFromLabel?.(utName);
-      const ut = data.undertakings.find((u) => u.ut_name === utName);
-      if (ut) applyStoryMapFocus(ut.bu_name);
-      storyStatus(`Filtered · Undertaking ${utName}`);
+      /* Same UT clicked again clears the filter: fly back out */
+      const on = window.IKEDC?.getFilters?.()?.uts?.includes(utName);
+      applyStoryMapFocus(on ? { ut: utName } : null);
+      storyStatus(on ? `Filtered · Undertaking ${utName} — click again to clear` : "Story filter cleared");
     };
 
     const byBuAgree = bus.map((b) => {
