@@ -104,22 +104,49 @@
             <button type="button" class="btn btn-secondary btn-icon" id="export-btn" aria-haspopup="menu">
               <svg class="ico" aria-hidden="true"><use href="#i-download"/></svg><span>Export</span><svg class="ico ico-caret" aria-hidden="true"><use href="#i-chevron"/></svg>
             </button>
-            <div class="export-menu" id="export-menu" hidden>
-              <button type="button" data-export="csv-uts">Undertakings CSV</button>
-              <button type="button" data-export="csv-bus">Business Units CSV</button>
-              <button type="button" data-export="csv-feeders">Feeders CSV</button>
-              <button type="button" data-export="csv-dts">DTs CSV</button>
-              <button type="button" data-export="xlsx">Excel workbook</button>
-              <button type="button" data-export="kml">Filtered map KML</button>
-              <button type="button" data-export="geojson">Filtered GeoJSON</button>
+            <div class="export-menu" id="export-menu" role="menu" aria-label="Export data" hidden>
+              <div class="export-menu-head">
+                <strong>Export data</strong>
+                <span id="export-scope">Follows your current filters</span>
+              </div>
+              <p class="export-menu-group">Spreadsheets</p>
+              <button type="button" role="menuitem" data-export="xlsx" data-report="excel">
+                <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-sheet"/></svg></span>
+                <span class="export-txt"><b>Excel workbook</b><small>Branded multi-sheet workbook with charts</small></span>
+              </button>
+              <button type="button" role="menuitem" data-export="csv-bus" data-report="csv-bus">
+                <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-building"/></svg></span>
+                <span class="export-txt"><b>Business Units</b><small>CSV · totals, ownership, density</small></span>
+              </button>
+              <button type="button" role="menuitem" data-export="csv-uts" data-report="csv-uts">
+                <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-grid"/></svg></span>
+                <span class="export-txt"><b>Undertakings</b><small>CSV · totals, agreement, lineage</small></span>
+              </button>
+              <button type="button" role="menuitem" data-export="csv-feeders" data-report="csv-feeders">
+                <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-pulse"/></svg></span>
+                <span class="export-txt"><b>Feeders</b><small>CSV · DT load, length, fidelity</small></span>
+              </button>
+              <button type="button" role="menuitem" data-export="csv-dts" data-report="csv-dts">
+                <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-bolt"/></svg></span>
+                <span class="export-txt"><b>DT register</b><small>CSV · every DT in the filter</small></span>
+              </button>
+              <p class="export-menu-group">Map data</p>
+              <button type="button" role="menuitem" data-export="geojson" data-report="geojson">
+                <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-map"/></svg></span>
+                <span class="export-txt"><b>GeoJSON</b><small>For QGIS / ArcGIS · BUs, UTs, DTs</small></span>
+              </button>
+              <button type="button" role="menuitem" data-export="kml" data-report="kml">
+                <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-map"/></svg></span>
+                <span class="export-txt"><b>Google Earth KML</b><small>Styled BU areas and DT pins</small></span>
+              </button>
             </div>
           </div>
         </div>
         <div class="chrome-exports" role="group" aria-label="Reports">
-          <button type="button" class="btn btn-secondary btn-icon" id="btn-export-pdf" title="Export PDF">
-            <svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span class="lbl-full">Export PDF</span><span class="lbl-short">PDF</span>
+          <button type="button" class="btn btn-secondary btn-icon btn-report btn-report-pdf" id="btn-export-pdf" data-report="pdf" title="Branded PDF report of the current view: charts, map and tables">
+            <svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><span class="lbl-full">PDF report</span><span class="lbl-short">PDF</span>
           </button>
-          <button type="button" class="btn btn-primary btn-icon" id="btn-export-dual-xlsx" title="Excel workbook with both dashboards">
+          <button type="button" class="btn btn-primary btn-icon btn-report" id="btn-export-dual-xlsx" data-report="excel-both" title="Branded Excel workbook covering Operations, Summary and Story">
             <svg class="ico" aria-hidden="true"><use href="#i-sheet"/></svg><span class="lbl-full">Excel (both)</span><span class="lbl-short">Excel</span>
           </button>
         </div>
@@ -724,17 +751,16 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/shpjs@4.0.4/dist/shp.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="js/app.js"></script>
   <script src="js/feeds.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/experience.js"></script>
+  <script src="js/reports.js"></script>
   <script>
     document.getElementById("btn-export-pdf-story")?.addEventListener("click", () => {
-      window.IKEDCExperience?.exportPDF?.();
+      window.IKEDCReports?.pdf?.({ both: true });
     });
   </script>
 </body>
