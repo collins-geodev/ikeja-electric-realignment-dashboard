@@ -1851,7 +1851,7 @@
 
     if (state.lagos?.features?.length) {
       L.geoJSON(state.lagos, {
-        style: { color: "#e8a317", weight: 2.2, fillOpacity: 0.02, dashArray: "7 5" },
+        style: { color: "#e8a317", weight: 2.2, fillOpacity: 0.02 },
         onEachFeature: (f, lyr) => lyr.bindPopup(`<strong>${f.properties?.name || "Lagos State"}</strong>`),
       }).addTo(state.layers.lagos);
     }
@@ -1876,7 +1876,7 @@
     utPolys.forEach((u) => {
       ringsToLatLngs(u.rings).forEach((latlngs) => {
         L.polygon(latlngs, {
-          color: u.fill_hex, weight: 1, fillOpacity: 0.05, dashArray: "4 4",
+          color: u.fill_hex, weight: 1.2, fillColor: u.fill_hex, fillOpacity: 0.16,
         })
           .bindPopup(utPopupHtml(u), popupOpts)
           .addTo(state.layers.ut);
@@ -1980,8 +1980,9 @@
     const legend = document.getElementById("map-legend");
     if (legend) {
       legend.innerHTML = `
-      <span><i class="legend-swatch" style="background:transparent;outline:1px dashed #e8a317"></i>Lagos State</span>
+      <span><i class="legend-swatch" style="background:transparent;outline:2px solid #e8a317"></i>Lagos State</span>
       ${buPolys.map((b) => `<span><i class="legend-swatch" style="background:${b.fill_hex}"></i>${b.bu_name}</span>`).join("")}
+      <span><i class="legend-swatch" style="background:linear-gradient(90deg,#d89880 0 50%,#801a19 50%)"></i>Undertakings (shades of BU)</span>
       <span><i class="legend-swatch" style="background:#5ec8ff"></i>11 kV (live)</span>
       <span><i class="legend-swatch" style="background:#ff7a3d"></i>33 kV (live)</span>
       <span><i class="legend-swatch" style="background:#3d9cf0;border-radius:50%"></i>Public DT</span>
