@@ -570,34 +570,23 @@
 
     data.map.bu_polygons.forEach((b) => {
       const dim = !inFocus(b.bu_name);
-      b.rings.forEach((ring) => {
-        const latlngs = ring.map(([lon, lat]) => [lat, lon]);
-        L.polygon(latlngs, {
-          color: b.fill_hex,
-          weight: dim ? 1 : 2.4,
-          fillColor: b.fill_hex,
-          fillOpacity: dim ? 0.06 : 0.28,
-        })
-          .bindPopup(pop?.bu?.(b) || `<strong>${buLabel(b.bu_name)}</strong>`, popOpts)
-          .on("click", () => setCoverageFocus(b.bu_name))
-          .addTo(Lyr.bus);
-        if (!dim && !belowBu) latlngs.forEach((ll) => bounds.push(ll));
-      });
+      const latlngs = ringsToLatLngs(b.rings);
+      L.polygon(latlngs, boundaryStyle(b, dim ? "dim" : "normal"))
+        .bindPopup(pop?.bu?.(b) || `<strong>${buLabel(b.bu_name)}</strong>`, popOpts)
+        .on("click", () => setCoverageFocus(b.bu_name))
+        .addTo(Lyr.bus);
+      if (!dim && !belowBu) latlngs[0].forEach((ll) => bounds.push(ll));
     });
 
     (data.map.ut_polygons || []).forEach((u) => {
       if (!inFocus(u.bu_name)) return;
       const picked = belowBu && utIn(u.ut_name);
       if (belowBu && !picked) return;
-      u.rings.forEach((ring) => {
-        const latlngs = ring.map(([lon, lat]) => [lat, lon]);
-        if (picked) latlngs.forEach((ll) => bounds.push(ll));
-        L.polygon(latlngs, {
-          color: u.fill_hex, weight: picked ? 2.2 : 1.2, fillColor: u.fill_hex, fillOpacity: picked ? 0.3 : 0.16,
-        })
-          .bindPopup(pop?.ut?.(u) || `<strong>${u.ut_name}</strong> (${buLabel(u.bu_name)})`, popOpts)
-          .addTo(Lyr.ut);
-      });
+      const latlngs = ringsToLatLngs(u.rings);
+      if (picked) latlngs[0].forEach((ll) => bounds.push(ll));
+      L.polygon(latlngs, boundaryStyle(u, picked ? "focus" : "normal"))
+        .bindPopup(pop?.ut?.(u) || `<strong>${u.ut_name}</strong> (${buLabel(u.bu_name)})`, popOpts)
+        .addTo(Lyr.ut);
     });
 
     /* Feeder layer names are the short tails of register names (11-…INJ-T1-<tail>) */
@@ -698,6 +687,17 @@
       map.invalidateSize();
       if (bounds.length) map.fitBounds(bounds, { padding: [28, 28], maxZoom: 12 });
     }, 80);
+  }
+
+  /** Boundary rings are one polygon: the outer ring first, then any holes */
+  function ringsToLatLngs(rings) {
+    return (rings || []).map((ring) => ring.map(([lon, lat]) => [lat, lon]));
+  }
+
+  /** KMZ boundary symbology, shared with the Operations map (js/app.js) */
+  function boundaryStyle(p, mode = "normal") {
+    return window.IKEDC?.boundaryStyle?.(p, mode)
+      || { color: p.stroke || p.fill_hex, weight: p.stroke_width || 2, fillColor: p.fill_hex, fillOpacity: p.fill_opacity ?? 0.4 };
   }
 
   function buLabel(code) {
@@ -948,25 +948,23 @@
     method: ["#story-map-method", "story-layers-method"],
   };
 
-  const ringsToLatLngs = (rings) => (rings || []).map((ring) => ring.map(([lon, lat]) => [lat, lon]));
-
   /** Area for a Story focus: { bu } / { ut } / { all } (every BU); null = whole franchise, no highlight */
   function storyFocusShapes(target) {
     const data = window.IKEDC?.getData?.();
     if (!data?.map || !target) return null;
     if (target.ut) {
       const u = (data.map.ut_polygons || []).find((p) => p.ut_name === target.ut);
-      if (u) return { rings: u.rings, color: u.fill_hex || u.bu_hex || "#ffd56a", bus: [u.bu_name] };
+      if (u) return { polys: [u.rings], color: u.fill_hex || u.bu_hex || "#ffd56a", bus: [u.bu_name] };
     }
     const bus = target.all ? data.map.bu_polygons : data.map.bu_polygons.filter((p) => p.bu_name === target.bu);
     if (!bus.length) return null;
-    return { rings: bus.flatMap((b) => b.rings), color: bus.length === 1 ? bus[0].fill_hex : "#ffd56a", bus: bus.map((b) => b.bu_name) };
+    return { polys: bus.map((b) => b.rings), color: bus.length === 1 ? bus[0].fill_hex : "#ffd56a", bus: bus.map((b) => b.bu_name) };
   }
 
   /** Pulse the focus area in and out a few times, then remove it */
   function flashStoryArea(map, shapes) {
     if (map._ikedcFlash) map.removeLayer(map._ikedcFlash);
-    const layer = L.polygon(ringsToLatLngs(shapes.rings).map((ring) => [ring]), {
+    const layer = L.polygon(shapes.polys.map(ringsToLatLngs), {
       color: "#ffffff",
       weight: 4,
       fillColor: shapes.color,
@@ -997,20 +995,16 @@
     map._ikedcFramePending = false;
     map.invalidateSize();
     const shapes = storyFocusShapes(experience.storyFocus);
-    (map._ikedcBuPolys || []).forEach(({ bu, layer }) => {
-      const on = !shapes || shapes.bus.includes(bu);
-      layer.setStyle(shapes
-        ? { fillOpacity: on ? 0.4 : 0.08, opacity: on ? 1 : 0.35, weight: on ? 3 : 1 }
-        : { fillOpacity: 0.28, opacity: 1, weight: 2 });
-    });
     const focusUt = experience.storyFocus?.ut;
-    (map._ikedcUtPolys || []).forEach(({ bu, ut, layer }) => {
-      const on = !shapes || (focusUt ? ut === focusUt : shapes.bus.includes(bu));
-      layer.setStyle(shapes
-        ? { fillOpacity: on ? 0.24 : 0.04, opacity: on ? 1 : 0.3, weight: focusUt && on ? 2.6 : 1.2 }
-        : { fillOpacity: 0.16, opacity: 1, weight: 1.2 });
+    (map._ikedcBuPolys || []).forEach(({ bu, feature, layer }) => {
+      const on = !shapes || shapes.bus.includes(bu);
+      layer.setStyle(boundaryStyle(feature, !shapes ? "normal" : !on ? "dim" : focusUt ? "normal" : "focus"));
     });
-    const bounds = shapes ? L.latLngBounds(ringsToLatLngs(shapes.rings).flat()) : map._ikedcOverview;
+    (map._ikedcUtPolys || []).forEach(({ bu, ut, feature, layer }) => {
+      const on = !shapes || (focusUt ? ut === focusUt : shapes.bus.includes(bu));
+      layer.setStyle(boundaryStyle(feature, !shapes ? "normal" : !on ? "dim" : focusUt ? "focus" : "normal"));
+    });
+    const bounds = shapes ? L.latLngBounds(shapes.polys.map((rings) => ringsToLatLngs(rings)[0]).flat()) : map._ikedcOverview;
     if (!bounds?.isValid?.()) return;
     const opts = { padding: [28, 28], maxZoom: shapes && !experience.storyFocus?.all ? 13 : 12 };
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -1263,39 +1257,31 @@
 
     const bounds = [];
     (data.map.bu_polygons || []).forEach((b) => {
-      (b.rings || []).forEach((ring) => {
-        const latlngs = ring.map(([lon, lat]) => [lat, lon]);
-        const poly = L.polygon(latlngs, {
-          color: b.fill_hex, weight: 2, fillColor: b.fill_hex, fillOpacity: 0.28,
+      const latlngs = ringsToLatLngs(b.rings);
+      const poly = L.polygon(latlngs, boundaryStyle(b))
+        .bindPopup(window.IKEDC?.popupHtml?.bu?.(b) || buLabel(b.bu_name), window.IKEDC?.popupOpts || { maxWidth: 360 })
+        .on("click", () => {
+          window.IKEDC?.setFilters?.({ bus: [b.bu_name], uts: [], feeders: [], dts: [] });
+          applyStoryMapFocus(b.bu_name);
+          storyStatus(`Focused · ${buLabel(b.bu_name)}`);
         })
-          .bindPopup(window.IKEDC?.popupHtml?.bu?.(b) || buLabel(b.bu_name), window.IKEDC?.popupOpts || { maxWidth: 360 })
-          .on("click", () => {
-            window.IKEDC?.setFilters?.({ bus: [b.bu_name], uts: [], feeders: [], dts: [] });
-            applyStoryMapFocus(b.bu_name);
-            storyStatus(`Focused · ${buLabel(b.bu_name)}`);
-          })
-          .addTo(layers.bus);
-        map._ikedcBuPolys.push({ bu: b.bu_name, layer: poly });
-        latlngs.forEach((ll) => bounds.push(ll));
-      });
+        .addTo(layers.bus);
+      map._ikedcBuPolys.push({ bu: b.bu_name, feature: b, layer: poly });
+      latlngs[0].forEach((ll) => bounds.push(ll));
     });
 
-    /* Undertakings sit above their BU, filled in a shade of the BU colour */
+    /* Undertakings sit above their BU (white outline, as in the KMZ) */
     (data.map.ut_polygons || []).forEach((u) => {
       const name = window.IKEDC?.utDisplayName?.(u.ut_name) || u.ut_name;
-      (u.rings || []).forEach((ring) => {
-        const poly = L.polygon(ring.map(([lon, lat]) => [lat, lon]), {
-          color: u.fill_hex, weight: 1.2, fillColor: u.fill_hex, fillOpacity: 0.16,
+      const poly = L.polygon(ringsToLatLngs(u.rings), boundaryStyle(u))
+        .bindPopup(window.IKEDC?.popupHtml?.ut?.(u) || `<strong>${name}</strong> (${buLabel(u.bu_name)})`, window.IKEDC?.popupOpts || { maxWidth: 360 })
+        .on("click", () => {
+          window.IKEDC?.setFilters?.({ bus: [u.bu_name], uts: [u.ut_name], feeders: [], dts: [] });
+          applyStoryMapFocus({ ut: u.ut_name });
+          storyStatus(`Focused · ${name} (${buLabel(u.bu_name)})`);
         })
-          .bindPopup(window.IKEDC?.popupHtml?.ut?.(u) || `<strong>${name}</strong> (${buLabel(u.bu_name)})`, window.IKEDC?.popupOpts || { maxWidth: 360 })
-          .on("click", () => {
-            window.IKEDC?.setFilters?.({ bus: [u.bu_name], uts: [u.ut_name], feeders: [], dts: [] });
-            applyStoryMapFocus({ ut: u.ut_name });
-            storyStatus(`Focused · ${name} (${buLabel(u.bu_name)})`);
-          })
-          .addTo(layers.uts);
-        map._ikedcUtPolys.push({ bu: u.bu_name, ut: u.ut_name, layer: poly });
-      });
+        .addTo(layers.uts);
+      map._ikedcUtPolys.push({ bu: u.bu_name, ut: u.ut_name, feature: u, layer: poly });
     });
 
     fillStoryAssetLayers(map, data);

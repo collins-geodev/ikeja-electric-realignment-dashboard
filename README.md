@@ -50,7 +50,7 @@ Figures are loaded from `data/dashboard.json` at runtime (values update when the
 | Undertakings | 38 | Realigned from 54 previous |
 | Distribution transformers | ~20,789 | Public + private register |
 | Mean register agreement | ~97.6% | DT points vs UT polygons |
-| Feeders | ~418 | Mix of 11 kV and 33 kV |
+| Feeders | 417 | 326 × 11 kV and 91 × 33 kV (IE 2026 feeder KMZs) |
 | Injection substations (ISS) | ~65 | With 33 kV TOC loads |
 | TCN stations | ~17 | Transmission interfaces |
 
@@ -107,9 +107,10 @@ Use **Filter Layers** in each map title bar to toggle overlays. Default framing 
 | GeoJSON / JSON | Runtime data under `data/` |
 | Curated `dashboard.json` | KPIs, BU/UT stats, analytics aggregates |
 | `dt_register.json` | Every DT (ownership, capacity, feeder, old/new BU & UT, connection, metering, location) — rebuild with `python scripts/build_dt_register.py IE_DT_Public.kmz IE_DT_Private.kmz` |
-| `feeders.geojson` | MV corridor geometries |
+| `feeders.geojson` | 11 kV / 33 kV feeder routes from the IE 2026 feeder KMZs |
 | `lagos_boundary.geojson` | State context |
-| `map_labels.json` | BU / UT label anchors |
+| `map_labels.json` | BU / UT label anchors from the IE 2026 boundary KMZs |
+| BU / UT boundaries | `dashboard.json` polygons (outer ring, then holes) with the KMZ symbology — rebuild boundaries, labels, feeder routes and feeder metrics with `python scripts/build_boundaries.py IE_BU_Boundary_2026.kmz IE_UT_Boundary_2026.kmz IE_Feeders_11kV_2026.kmz IE_Feeders_33kV_2026.kmz` |
 
 ### Backend (Vercel serverless)
 
@@ -162,9 +163,9 @@ Use **Filter Layers** in each map title bar to toggle overlays. Default framing 
 
 Metrics and geometries are prepared from the Ikeja Electric realignment GIS workspace (QGIS / ArcGIS Pro TOC), including:
 
-- BU / UT boundaries (realigned and lineage to previous structure)
+- BU / UT boundaries (realigned and lineage to previous structure) from the IE 2026 boundary KMZs, drawn in their symbology
 - Public and private distribution transformers (DTs)
-- 11 kV and 33 kV feeders
+- 11 kV and 33 kV feeder routes from the IE 2026 feeder KMZs
 - Injection substations (ISS) and TCN assets
 
 Preprocessed files under `data/` are loaded by the dashboard at runtime. Customer account identifiers are excluded from published layers.
