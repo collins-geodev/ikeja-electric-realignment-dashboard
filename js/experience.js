@@ -587,7 +587,7 @@
         fillOpacity: 0.88,
         renderer,
       })
-        .bindPopup(pop?.dt?.(p) || `<strong>${p.name || "DT"}</strong>`, popOpts)
+        .bindPopup(() => pop?.dt?.(p) || `<strong>${p.name || "DT"}</strong>`, popOpts)
         .addTo(priv ? Lyr.dtsPrivate : Lyr.dtsPublic);
     });
 
@@ -1004,7 +1004,10 @@
     const popH = window.IKEDC?.popupHtml;
     const popO = window.IKEDC?.popupOpts || { maxWidth: 360, className: "ikedc-map-popup" };
 
-    (data.map.dt_sample || []).slice(0, 5000).forEach((p) => {
+    /* Even spread of ~5k DTs across the register (story map is an overview) */
+    const allDts = data.map.dt_sample || [];
+    const stride = Math.max(1, Math.ceil(allDts.length / 5000));
+    allDts.filter((_, i) => i % stride === 0).forEach((p) => {
       if (p.lat == null || p.lon == null) return;
       const priv = String(p.own || "").toUpperCase().includes("PRIVATE");
       L.circleMarker([p.lat, p.lon], {
@@ -1014,7 +1017,7 @@
         fillColor: priv ? "#e4572e" : "#3d9cf0",
         fillOpacity: 0.9,
         renderer: dtRenderer,
-      }).bindPopup(popH?.dt?.(p) || (priv ? "Private DT" : "Public DT"), popO)
+      }).bindPopup(() => popH?.dt?.(p) || (priv ? "Private DT" : "Public DT"), popO)
         .addTo(priv ? layers.dtsPrivate : layers.dtsPublic);
     });
 
