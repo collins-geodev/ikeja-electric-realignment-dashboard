@@ -16,7 +16,7 @@
 | Filter-driven zoom | Click charts, tables, or map features to filter and zoom (BU → UT → feeder → DT) |
 | Cross-view sync | Operational Dashboard, Dashboard Summary, and Story map share the same filters |
 | Live feeds | Ikeja Electric, NERC, LASERC, Nairametrics, and Google News topic feeds (5‑minute refresh) |
-| Exports | IE-branded Excel workbooks and PDF report, CSV slices, GeoJSON / KML — all built live from the active filters |
+| Exports | IE-branded Excel workbooks and PDF report, formatted single-table Excel files (with plain CSV alongside), GeoJSON / KML — all built live from the active filters |
 
 ---
 

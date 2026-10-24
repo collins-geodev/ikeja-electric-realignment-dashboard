@@ -114,22 +114,34 @@
                 <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-sheet"/></svg></span>
                 <span class="export-txt"><b>Excel workbook</b><small>Branded multi-sheet workbook with charts</small></span>
               </button>
-              <button type="button" role="menuitem" data-export="csv-bus" data-report="csv-bus">
-                <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-building"/></svg></span>
-                <span class="export-txt"><b>Business Units</b><small>CSV · totals, ownership, density</small></span>
-              </button>
-              <button type="button" role="menuitem" data-export="csv-uts" data-report="csv-uts">
-                <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-grid"/></svg></span>
-                <span class="export-txt"><b>Undertakings</b><small>CSV · totals, agreement, lineage</small></span>
-              </button>
-              <button type="button" role="menuitem" data-export="csv-feeders" data-report="csv-feeders">
-                <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-pulse"/></svg></span>
-                <span class="export-txt"><b>Feeders</b><small>CSV · DT load, length, fidelity</small></span>
-              </button>
-              <button type="button" role="menuitem" data-export="csv-dts" data-report="csv-dts">
-                <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-bolt"/></svg></span>
-                <span class="export-txt"><b>DT register</b><small>CSV · every DT in the filter</small></span>
-              </button>
+              <div class="export-row">
+                <button type="button" role="menuitem" data-export="sheet-bus" data-report="sheet-bus">
+                  <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-building"/></svg></span>
+                  <span class="export-txt"><b>Business Units</b><small>Excel · totals, ownership, density</small></span>
+                </button>
+                <button type="button" role="menuitem" class="export-csv" data-export="csv-bus" data-report="csv-bus" aria-label="Business Units as plain CSV" title="Plain CSV (unformatted, for scripts and databases)">CSV</button>
+              </div>
+              <div class="export-row">
+                <button type="button" role="menuitem" data-export="sheet-uts" data-report="sheet-uts">
+                  <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-grid"/></svg></span>
+                  <span class="export-txt"><b>Undertakings</b><small>Excel · totals, agreement, lineage</small></span>
+                </button>
+                <button type="button" role="menuitem" class="export-csv" data-export="csv-uts" data-report="csv-uts" aria-label="Undertakings as plain CSV" title="Plain CSV (unformatted, for scripts and databases)">CSV</button>
+              </div>
+              <div class="export-row">
+                <button type="button" role="menuitem" data-export="sheet-feeders" data-report="sheet-feeders">
+                  <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-pulse"/></svg></span>
+                  <span class="export-txt"><b>Feeders</b><small>Excel · DT load, length, fidelity</small></span>
+                </button>
+                <button type="button" role="menuitem" class="export-csv" data-export="csv-feeders" data-report="csv-feeders" aria-label="Feeders as plain CSV" title="Plain CSV (unformatted, for scripts and databases)">CSV</button>
+              </div>
+              <div class="export-row">
+                <button type="button" role="menuitem" data-export="sheet-dts" data-report="sheet-dts">
+                  <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-bolt"/></svg></span>
+                  <span class="export-txt"><b>DT register</b><small>Excel · every DT in the filter</small></span>
+                </button>
+                <button type="button" role="menuitem" class="export-csv" data-export="csv-dts" data-report="csv-dts" aria-label="DT register as plain CSV" title="Plain CSV (unformatted, for scripts and databases)">CSV</button>
+              </div>
               <p class="export-menu-group">Map data</p>
               <button type="button" role="menuitem" data-export="geojson" data-report="geojson">
                 <span class="export-ico" aria-hidden="true"><svg class="ico"><use href="#i-map"/></svg></span>

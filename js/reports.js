@@ -1028,11 +1028,11 @@
     }
 
     await progress("Writing data sheets…");
-    tableSheet(wb, "Business Units", R, COLS.bus, R.bus, { description: "One row per Business Unit in the filter. The colour band matches the dashboard map.", swatch: true });
-    tableSheet(wb, "Undertakings", R, COLS.uts, R.uts, { description: "One row per Undertaking in the filter, with register agreement and the pre-October 1, 2026 UTs it was formed from.", swatch: true });
-    tableSheet(wb, "Feeders", R, COLS.feeders, R.feeders, { description: "Feeders with DTs in the filter, named in the DT register's standard nomenclature. Length and boundary fidelity come from the feeder network where the names match (blank otherwise)." });
-    await progress(`Writing ${fmt.format(R.dtRows.length)} DT rows…`);
-    tableSheet(wb, "DT register", R, COLS.dts, R.dtRows, { description: "Every distribution transformer inside the filter, from the IE DT register.", totals: false });
+    for (const k of ["bus", "uts", "feeders", "dts"]) {
+      if (k === "dts") await progress(`Writing ${fmt.format(R.dtRows.length)} DT rows…`);
+      const [, title, cols, rows, opts] = tableSpec(R, k);
+      tableSheet(wb, title, R, cols, rows, opts);
+    }
     tableSheet(wb, "Ownership & capacity", R, COLS.breakdown, R.breakdown, { description: "Ownership and installed capacity by Business Unit." });
     tableSheet(wb, "Capacity classes", R, [{ h: "Business Unit", k: "name", w: 26 }, ...R.capBins.map((b) => ({ h: `${b} kVA`, k: b, w: 12, n: "#,##0", sum: true }))],
       R.breakdown.map((b) => ({ name: b.name, ...b.caps })), { description: "Distribution transformers by nameplate capacity class (kVA)." });
@@ -1050,10 +1050,38 @@
   }
 
   /* ---------- CSV / GeoJSON / KML ---------- */
+  /** One table per download: file name, sheet title, columns, rows and sheet options */
+  function tableSpec(R, kind) {
+    return {
+      bus: ["Business_Units", "Business Units", COLS.bus, R.bus, { description: "One row per Business Unit in the filter. The colour band matches the dashboard map.", swatch: true }],
+      uts: ["Undertakings", "Undertakings", COLS.uts, R.uts, { description: "One row per Undertaking in the filter, with register agreement and the pre-October 1, 2026 UTs it was formed from.", swatch: true }],
+      feeders: ["Feeders", "Feeders", COLS.feeders, R.feeders, { description: "Feeders with DTs in the filter, named in the DT register's standard nomenclature. Length and boundary fidelity come from the feeder network where the names match (blank otherwise)." }],
+      dts: ["DT_Register", "DT register", COLS.dts, R.dtRows, { description: "Every distribution transformer inside the filter, from the IE DT register.", totals: false }],
+    }[kind];
+  }
+
+  /** Single branded sheet (the formatted counterpart of a CSV download) plus the notes sheet */
+  async function sheet(kind) {
+    await progress("Loading spreadsheet tools…");
+    await loadScript(LIBS.exceljs);
+    const R = reportData();
+    const [file, title, cols, rows, opts] = tableSpec(R, kind);
+    await progress(`Writing ${plural(rows.length, "row")}…`);
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "Ikeja Electric · GIS Team";
+    wb.company = "Ikeja Electric";
+    wb.title = `IE ${title}`;
+    wb.created = R.generated;
+    tableSheet(wb, title, R, cols, rows, opts);
+    notesSheet(wb, R);
+    const buf = await wb.xlsx.writeBuffer();
+    download(`IE_${file}_${slug(R)}_${dateTag(R.generated)}.xlsx`, new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    await progress("");
+  }
+
   function csv(kind) {
     const R = reportData();
-    const map = { bus: ["Business_Units", COLS.bus, R.bus], uts: ["Undertakings", COLS.uts, R.uts], feeders: ["Feeders", COLS.feeders, R.feeders], dts: ["DT_Register", COLS.dts, R.dtRows] };
-    const [name, cols, rows] = map[kind];
+    const [name, , cols, rows] = tableSpec(R, kind);
     const esc = (v) => {
       if (v == null) return "";
       const s = typeof v === "number" ? String(Math.round(v * 1e6) / 1e6) : String(v);
@@ -1506,6 +1534,7 @@
   window.IKEDCReports = {
     pdf: (o) => run("pdf", () => pdf(o)),
     excel: (o) => run(o?.both ? "excel-both" : "excel", () => excel(o)),
+    sheet: (kind) => run(`sheet-${kind}`, () => sheet(kind)),
     csv: (kind) => run(`csv-${kind}`, async () => csv(kind)),
     geojson: () => run("geojson", async () => geojson()),
     kml: () => run("kml", async () => kml()),
