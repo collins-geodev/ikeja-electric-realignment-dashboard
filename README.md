@@ -16,7 +16,7 @@
 | Filter-driven zoom | Click charts, tables, or map features to filter and zoom (BU → UT → feeder → DT) |
 | Cross-view sync | Operational Dashboard, Dashboard Summary, and Story map share the same filters |
 | Live feeds | Ikeja Electric, NERC, LASERC, Nairametrics, and Google News topic feeds (5‑minute refresh) |
-| Exports | Excel workbooks, CSV slices, GeoJSON / KML, PDF snapshots |
+| Exports | IE-branded Excel workbooks and PDF report, CSV slices, GeoJSON / KML — all built live from the active filters |
 
 ---
 
@@ -123,9 +123,9 @@ Use **Filter Layers** in each map title bar to toggle overlays. Default framing 
 
 | Library | Use |
 | --- | --- |
-| SheetJS (xlsx) | Excel export |
+| ExcelJS (loaded on demand) | Branded Excel workbooks |
+| jsPDF + jsPDF-AutoTable (loaded on demand) | Branded PDF report |
 | JSZip + shpjs + togeojson | Upload shapefile ZIP / KML |
-| html2canvas + jsPDF | PDF report snapshots |
 
 ### Hosting & delivery
 
@@ -143,8 +143,9 @@ Use **Filter Layers** in each map title bar to toggle overlays. Default framing 
 ├── index.html          # App shell (all three surfaces)
 ├── css/styles.css      # Theme, layout, motion
 ├── js/
-│   ├── app.js          # Operational Dashboard, map, filters, exports
-│   ├── experience.js   # Coverage, story, theme, PDF
+│   ├── app.js          # Operational Dashboard, map, filters
+│   ├── experience.js   # Coverage, story, theme
+│   ├── reports.js      # Excel / PDF / CSV / GeoJSON / KML exports
 │   ├── feeds.js        # Live feeds client
 │   └── audio.js        # Ambient audio
 ├── api/

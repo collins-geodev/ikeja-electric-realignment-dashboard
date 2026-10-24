@@ -423,30 +423,105 @@ body {
 .export-menu {
   position: absolute;
   right: 0;
-  top: calc(100% + 6px);
+  top: calc(100% + 8px);
   z-index: 50;
-  min-width: 200px;
-  background: var(--export-menu);
+  width: min(320px, calc(100vw - 24px));
+  /* IE red / gold stripe across the top */
+  background: linear-gradient(90deg, #c8452c 0 62%, #e8a317 62% 100%) top / 100% 3px no-repeat, var(--export-menu);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: var(--shadow);
-  padding: 0.35rem;
+  box-shadow: 0 18px 40px rgba(15, 28, 46, 0.22);
+  padding: 0.35rem 0.4rem 0.45rem;
 }
 .export-menu[hidden] { display: none !important; }
+.export-menu-head {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.55rem 0.6rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.25rem;
+}
+.export-menu-head strong { font: 700 0.92rem var(--font-display); color: var(--text); }
+.export-menu-head span { font-size: 0.74rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.export-menu-group {
+  margin: 0.45rem 0.6rem 0.2rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
 .export-menu button {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
   width: 100%;
   text-align: left;
   appearance: none;
   border: 0;
   background: transparent;
   color: var(--text);
-  padding: 0.5rem 0.65rem;
-  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  border-radius: 9px;
   font: 400 0.86rem var(--font-body);
   cursor: pointer;
+  min-height: 44px;
 }
-.export-menu button:hover { background: rgba(232, 163, 23, 0.14); }
+.export-menu button:hover,
+.export-menu button:focus-visible { background: rgba(232, 163, 23, 0.14); }
+.export-menu button[aria-busy="true"] { opacity: 0.6; cursor: progress; }
+.export-ico {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 8px;
+  background: var(--chip-bg);
+  color: var(--accent);
+}
+.export-ico .ico { width: 16px; height: 16px; }
+.export-txt { display: grid; gap: 0.05rem; min-width: 0; }
+.export-txt b { font-weight: 600; font-size: 0.86rem; }
+.export-txt small { font-size: 0.72rem; color: var(--muted); }
+
+/* Report buttons in IE colours */
+.btn-report[aria-busy="true"] { opacity: 0.7; cursor: progress; }
+.btn-report-pdf { border-color: rgba(200, 69, 44, 0.45); }
+.btn-report-pdf .ico { color: #c8452c; }
+.btn-report-pdf:hover { background: rgba(200, 69, 44, 0.08); border-color: #c8452c; }
+[data-theme="dark"] .btn-report-pdf .ico { color: #ff8a6b; }
+
+/* Progress toast while a report is built */
+.report-progress {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  max-width: calc(100vw - 32px);
+  padding: 0.7rem 1.1rem;
+  border-radius: 999px;
+  background: #0f1c2e;
+  color: #fff;
+  font: 600 0.86rem var(--font-body);
+  box-shadow: 0 14px 34px rgba(15, 28, 46, 0.35);
+  border: 1px solid rgba(232, 163, 23, 0.5);
+}
+.report-progress[hidden] { display: none; }
+.report-progress-spinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #e8a317;
+  animation: feed-spin 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .report-progress-spinner { animation: none; } }
 .io-status {
   margin: 0 0 0.75rem;
   padding: 0.55rem 0.8rem;

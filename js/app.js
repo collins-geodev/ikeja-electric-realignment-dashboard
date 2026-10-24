@@ -2478,6 +2478,8 @@
     document.getElementById("export-btn").addEventListener("click", (e) => {
       e.stopPropagation();
       menu.hidden = !menu.hidden;
+      const scope = document.getElementById("export-scope");
+      if (!menu.hidden && scope) scope.textContent = `Scope: ${window.IKEDCReports?.scopeLabel?.() || "current filters"}`;
     });
     document.addEventListener("click", () => { menu.hidden = true; });
     menu.addEventListener("click", (e) => e.stopPropagation());
@@ -2490,78 +2492,17 @@
     });
   }
 
-  function downloadBlob(filename, blob) {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  function toCSV(rows) {
-    if (!rows.length) return "";
-    const keys = Object.keys(rows[0]);
-    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    return [keys.join(","), ...rows.map((r) => keys.map((k) => esc(r[k])).join(","))].join("\n");
-  }
-
+  /** Exports live in js/reports.js (branded Excel / CSV / GeoJSON / KML built from the active filters) */
   function runExport(kind) {
-    const uts = filteredUTs();
-    const bus = filteredBUs();
-    const feeders = filteredFeedersMeta();
-    const dts = filteredDTs();
-
-    if (kind === "csv-uts") {
-      downloadBlob("ikedc_undertakings.csv", new Blob([toCSV(uts)], { type: "text/csv" }));
-    } else if (kind === "csv-bus") {
-      downloadBlob("ikedc_business_units.csv", new Blob([toCSV(bus)], { type: "text/csv" }));
-    } else if (kind === "csv-feeders") {
-      downloadBlob("ikedc_feeders.csv", new Blob([toCSV(feeders)], { type: "text/csv" }));
-    } else if (kind === "csv-dts") {
-      downloadBlob("ikedc_dts.csv", new Blob([toCSV(dts)], { type: "text/csv" }));
-    } else if (kind === "xlsx" && typeof XLSX !== "undefined") {
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(bus), "BusinessUnits");
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(uts), "Undertakings");
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(feeders), "Feeders");
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dts.slice(0, 20000)), "DTs");
-      XLSX.writeFile(wb, "ikedc_realignment_export.xlsx");
-    } else if (kind === "geojson") {
-      const features = [];
-      filteredBUs().forEach((b) => {
-        const poly = state.data.map.bu_polygons.find((p) => p.bu_name === b.bu_name);
-        if (!poly) return;
-        features.push({
-          type: "Feature",
-          properties: { ...b, layer: "BU" },
-          geometry: { type: "MultiPolygon", coordinates: poly.rings.map((r) => [r]) },
-        });
-      });
-      dts.forEach((d) => {
-        features.push({
-          type: "Feature",
-          properties: { name: d.name, feeder: d.feeder, bu: d.bu, ut: d.ut, own: d.own },
-          geometry: { type: "Point", coordinates: [d.lon, d.lat] },
-        });
-      });
-      downloadBlob(
-        "ikedc_filtered.geojson",
-        new Blob([JSON.stringify({ type: "FeatureCollection", features }, null, 2)], { type: "application/geo+json" })
-      );
-    } else if (kind === "kml") {
-      const placemarks = dts.slice(0, 5000).map((d) => `
-      <Placemark><name>${escapeXml(d.name || "DT")}</name>
-      <description>${escapeXml(d.feeder || "")} · ${escapeXml(d.bu || "")}/${escapeXml(d.ut || "")}</description>
-      <Point><coordinates>${d.lon},${d.lat},0</coordinates></Point></Placemark>`).join("");
-      const kml = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>IKEDC filtered DTs</name>${placemarks}</Document></kml>`;
-      downloadBlob("ikedc_filtered_dts.kml", new Blob([kml], { type: "application/vnd.google-earth.kml+xml" }));
+    const reports = window.IKEDCReports;
+    if (!reports) {
+      setStatus("Export tools are still loading — try again in a moment.", true);
+      return;
     }
-    setStatus(`Export ready: ${kind}`);
-  }
-
-  function escapeXml(s) {
-    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    if (kind === "xlsx") reports.excel({ both: false });
+    else if (kind.startsWith("csv-")) reports.csv(kind.slice(4));
+    else if (kind === "geojson") reports.geojson();
+    else if (kind === "kml") reports.kml();
   }
 
   function resetFilters() {
@@ -2607,6 +2548,7 @@
     getFeedersGeo: () => state.feedersGeo,
     getLabels: () => state.labels,
     setLagos: (fc) => { state.lagos = fc; if (state.map) redrawMapLayers(); },
+    getLagos: () => state.lagos,
     setMapTheme,
     refreshChartTheme,
     resetFilters,
