@@ -1166,6 +1166,24 @@ tbody tr { cursor: pointer; transition: background 0.15s ease; }
 tbody tr:hover { background: rgba(255,255,255,0.04); }
 tbody tr.active { background: rgba(232, 163, 23, 0.12); }
 
+/* Filter scope notes on chart cards (shown when data is coarser than the active filter) */
+.chart-scope {
+  margin: -0.2rem 0 0.55rem;
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  background: var(--chip-bg);
+  color: var(--text);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+.chart-scope--label {
+  border-left-color: var(--ok);
+  background: transparent;
+  padding: 0 0 0 0.6rem;
+  font-weight: 600;
+}
+.chart-scope[hidden] { display: none; }
 .split-charts {
   display: grid;
   grid-template-columns: 1fr 1fr;
