@@ -1570,6 +1570,7 @@ button.kpi .value {
   box-shadow: inset 0 0 0 1px rgba(232, 163, 23, 0.28);
 }
 .chart-box { cursor: pointer; }
+.cell-sub { color: var(--muted); font-size: 0.78em; white-space: nowrap; }
 #ut-table tbody tr,
 #feeder-table tbody tr,
 #story-bu-table tbody tr {
@@ -1871,6 +1872,15 @@ button.kpi .value {
   transition: transform 0.2s ease, border-color 0.2s ease;
 }
 .story-bu-card:hover { transform: translateY(-2px); }
+.story-bu-card.active { outline: 2px solid var(--bu-color, var(--accent)); outline-offset: 2px; }
+.story-scope {
+  margin: 0.75rem auto 0;
+  max-width: 46rem;
+  text-align: center;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+.story-scope strong { color: var(--text); }
 .story-bu-card h3 { margin: 0 0 0.35rem; font-size: 1.02rem; color: var(--text); }
 .story-bu-card p { margin: 0; color: var(--muted); font-size: 0.86rem; line-height: 1.45; }
 .story-cards {

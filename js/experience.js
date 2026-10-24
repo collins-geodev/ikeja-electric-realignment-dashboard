@@ -21,7 +21,6 @@
     labels: null,
     coverageCharts: {},
     coverageFocusBu: null,
-    coverageFocusFeeder: null,
     lagos: null,
     storyMap: null,
     storyMaps: {},
@@ -204,14 +203,9 @@
   }
 
   function resetCurrent() {
-    if (experience.view === "intelligence" || experience.view === "coverage") {
-      window.IKEDC?.resetFilters?.();
-    }
-    if (experience.view === "coverage") {
-      experience.coverageFocusBu = null;
-      experience.coverageFocusFeeder = null;
-      initCoverage(true);
-    }
+    /* Filters are shared by every view, so Reset clears them everywhere */
+    window.IKEDC?.resetFilters?.();
+    if (experience.view === "coverage") initCoverage(true);
     if (experience.view === "story") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -298,56 +292,111 @@
     }
   }
 
-  function busInFocus(data) {
-    const bus = data.business_units.slice();
-    if (!experience.coverageFocusBu) return bus;
-    return bus.filter((b) => b.bu_name === experience.coverageFocusBu);
+  /**
+   * Summary and Story read the shared Operations filters (BU / UT / feeder / DT),
+   * so every view shows the same selection and the same numbers.
+   */
+  function viewScope() {
+    const sum = window.IKEDC?.getScopeSummary?.();
+    const network = !sum || sum.level === "network";
+    experience.coverageFocusBu = !network && sum.bus.length === 1 ? sum.bus[0] : null;
+    const filters = window.IKEDC?.getFilters?.() || {};
+    return {
+      sum,
+      network,
+      filters,
+      inFocus: (bu) => network || sum.bus.includes(bu),
+      utIn: (ut) => network || sum.uts.includes(ut),
+    };
   }
 
-  function setCoverageFocus(buName) {
-    experience.coverageFocusBu = buName || null;
-    experience.coverageFocusFeeder = null;
-    initCoverage(false, { keepMap: true });
+  /** DT counts (total / private) per BU inside the active filters; null until the register loads */
+  function scopeCountsByBu(data) {
+    if (!data.map?.dt_register) return null;
+    const out = {};
+    (window.IKEDC?.getScopeDTs?.() || []).forEach((d) => {
+      const c = out[d.bu] || (out[d.bu] = { total: 0, priv: 0 });
+      c.total += 1;
+      if (String(d.own || "").toUpperCase().includes("PRIVATE")) c.priv += 1;
+    });
+    return out;
   }
+
+  /** DTs whose register BU changed in the 2026 realignment (whole network) */
+  function networkMovedCount(data) {
+    const rows = data.map?.dt_register ? data.map.dt_sample : null;
+    if (rows) return rows.filter((d) => d.old_bu && d.old_bu !== d.bu).length;
+    return (data.dt_analytics?.reassignments || []).reduce((acc, r) => acc + r.count, 0);
+  }
+
+  /** Focus a BU (or clear) through the shared filters */
+  function setCoverageFocus(buName) {
+    const cur = window.IKEDC?.getFilters?.() || {};
+    const want = buName ? [buName] : [];
+    const same = JSON.stringify(cur.bus || []) === JSON.stringify(want)
+      && !cur.uts?.length && !cur.feeders?.length && !cur.dts?.length;
+    if (same) return;
+    window.IKEDC?.setFilters?.({ bus: want, uts: [], feeders: [], dts: [] });
+  }
+
+  /** Toggle one feeder (by layer / meta name) through the shared filters, with the picker cascade */
+  function toggleCoverageFeeder(name, voltage) {
+    const names = window.IKEDC?.feederRegisterNames?.(name, voltage) || [];
+    if (!names.length) return;
+    const cur = window.IKEDC?.getFilters?.()?.feeders || [];
+    const on = names.every((n) => cur.includes(n)) && cur.length === names.length;
+    window.IKEDC?.pickFilter?.("feeder", on ? [] : names);
+  }
+
+  /* Re-render Summary / Story when the filters change anywhere (deferred: a chart click may be mid-handler) */
+  window.addEventListener("ikedc:filters", () => {
+    setTimeout(() => {
+      if (experience.view === "coverage" && experience.coverageMap) initCoverage(false, { keepMap: true });
+      else experience.coverageDirty = true;
+      if (experience.storyBooted) refreshStoryForFilters();
+    }, 0);
+  });
 
   function initCoverage(force, opts = {}) {
     const data = window.IKEDC?.getData?.();
     if (!data) return;
+    experience.coverageDirty = false;
     const k = data.kpis;
     const totalArea = data.business_units.reduce((s, b) => s + (b.area_km2 || 0), 0);
-    const dens = (totalArea ? k.dt_total / totalArea : 0).toFixed(1);
-    const focused = busInFocus(data);
-    const focus = focused[0];
+    const { sum, network, inFocus } = viewScope();
+    const area = network || !sum ? totalArea : sum.areaKm2;
+    const belowUt = sum && (sum.level === "feeder" || sum.level === "dt");
+    /* Feeder / DT picks have no area of their own: density stays that of their Undertaking(s) */
+    const densDts = network || !sum ? k.dt_total : (belowUt ? sum.utDtTotal : sum.dtTotal);
 
-    $("#cov-kpi-area").textContent = focus && experience.coverageFocusBu
-      ? `${Number(focus.area_km2).toLocaleString()} km²`
-      : `${Number(totalArea).toLocaleString()} km²`;
-    $("#cov-kpi-alt").textContent = focus && experience.coverageFocusBu
-      ? (focus.area_km2 ? (focus.dt_total / focus.area_km2).toFixed(1) : dens)
-      : dens;
+    $("#cov-kpi-area").textContent = `${Number(area.toFixed(1)).toLocaleString()} km²`;
+    $("#cov-kpi-alt").textContent = (area ? densDts / area : 0).toFixed(1);
     $("#cov-kpi-alt-label").textContent = "DT DENSITY";
-    $("#cov-kpi-alt-hint").textContent = experience.coverageFocusBu
-      ? `transformers per km² · ${experience.coverageFocusBu}`
-      : "transformers per km² across 2026 BUs";
-    $("#cov-kpi-feeders").textContent = experience.coverageFocusBu
-      ? String((data.feeders_by_bu || []).find((r) => r.bu_name === experience.coverageFocusBu)?.feeder_count || "—")
-      : `${k.feeders_total}`;
-    $("#cov-kpi-dts").textContent = experience.coverageFocusBu
-      ? Number(focus.dt_total).toLocaleString()
-      : Number(k.dt_total).toLocaleString();
-    const agreeVal = (() => {
-      const uts = experience.coverageFocusBu
-        ? data.undertakings.filter((u) => u.bu_name === experience.coverageFocusBu)
-        : data.undertakings;
-      if (!uts.length) return k.mean_agreement_pct;
-      return +(uts.reduce((s, u) => s + u.agreement_pct, 0) / uts.length).toFixed(1);
-    })();
-    $("#cov-kpi-agree").textContent = `${agreeVal}%`;
+    $("#cov-kpi-alt-hint").textContent = network
+      ? "transformers per km² across 2026 BUs"
+      : belowUt
+        ? `transformers per km² · its Undertaking${sum.uts.length === 1 ? "" : "s"} (${sum.uts.join(", ")})`
+        : `transformers per km² · ${sum.label}`;
+    $("#cov-kpi-feeders").textContent = network ? `${k.feeders_total}` : fmt.format(sum.feederCount);
+    $("#cov-kpi-dts").textContent = network ? Number(k.dt_total).toLocaleString() : fmt.format(sum.dtTotal);
+    $("#cov-kpi-agree").textContent = `${(network ? k.mean_agreement_pct : +sum.meanAgree.toFixed(1))}%`;
+    /* Card captions say what the filtered figures cover */
+    const hint = (id, text) => {
+      const el = $(id)?.closest(".cov-kpi")?.querySelector(".hint");
+      if (!el) return;
+      if (el.dataset.base == null) el.dataset.base = el.textContent;
+      el.textContent = network ? el.dataset.base : text;
+    };
+    if (sum) {
+      hint("#cov-kpi-area", belowUt ? `Undertaking footprint · ${sum.uts.join(", ")}` : `${sum.label} footprint`);
+      hint("#cov-kpi-feeders", `${sum.feeders11 || 0} × 11 kV · ${sum.feeders33 || 0} × 33 kV`);
+      hint("#cov-kpi-dts", sum.dtHint);
+    }
 
     const subtitle = $("#cov-map-subtitle");
     if (subtitle) {
-      subtitle.textContent = experience.coverageFocusBu
-        ? `Hybrid satellite · focused on ${experience.coverageFocusBu}`
+      subtitle.textContent = !network
+        ? `Hybrid satellite · focused on ${sum.label}`
         : "Hybrid satellite · Lagos boundary · BU fills · feeder corridors";
     }
 
@@ -376,6 +425,9 @@
 
     destroyCovCharts();
     const bus = data.business_units.slice().sort((a, b) => b.dt_total - a.dt_total);
+    const perBu = scopeCountsByBu(data);
+    const bandCount = (b) => (network || !perBu ? b.dt_total : perBu[b.bu_name]?.total || 0);
+    const bandBus = network ? bus : bus.filter((b) => inFocus(b.bu_name) && bandCount(b) > 0);
     const t = chartColors();
     const ctx1 = $("#chart-cov-band");
     const ctx2 = $("#chart-cov-phase");
@@ -383,10 +435,10 @@
       experience.coverageCharts.band = new Chart(ctx1, {
         type: "doughnut",
         data: {
-          labels: bus.map((b) => b.bu_name),
+          labels: bandBus.map((b) => b.bu_name),
           datasets: [{
-            data: bus.map((b) => b.dt_total),
-            backgroundColor: bus.map((b) => b.fill_hex),
+            data: bandBus.map(bandCount),
+            backgroundColor: bandBus.map((b) => b.fill_hex),
             borderWidth: 2,
             borderColor: t.light ? "#ffffff" : "#0b1017",
           }],
@@ -396,7 +448,8 @@
           maintainAspectRatio: false,
           onClick: (_evt, elems) => {
             if (!elems.length) return;
-            setCoverageFocus(bus[elems[0].index]?.bu_name);
+            const bu = bandBus[elems[0].index]?.bu_name;
+            setCoverageFocus(experience.coverageFocusBu === bu ? null : bu);
           },
           plugins: {
             legend: { position: "bottom", labels: { boxWidth: 10, color: t.text, font: { size: 11 } } },
@@ -418,11 +471,7 @@
           datasets: [{
             label: "Agreement %",
             data: agreeData,
-            backgroundColor: bus.map((b) => (
-              experience.coverageFocusBu && b.bu_name !== experience.coverageFocusBu
-                ? `${b.fill_hex}66`
-                : "#2e8b57"
-            )),
+            backgroundColor: bus.map((b) => (inFocus(b.bu_name) ? "#2e8b57" : `${b.fill_hex}66`)),
             borderRadius: 6,
           }],
         },
@@ -432,7 +481,8 @@
           layout: { padding: { top: 22 } },
           onClick: (_evt, elems) => {
             if (!elems.length) return;
-            setCoverageFocus(bus[elems[0].index]?.bu_name);
+            const bu = bus[elems[0].index]?.bu_name;
+            setCoverageFocus(experience.coverageFocusBu === bu ? null : bu);
           },
           plugins: {
             legend: { display: false },
@@ -452,9 +502,9 @@
     }
 
     $$(".cov-kpi").forEach((el) => {
-      el.classList.toggle("active", !!experience.coverageFocusBu);
+      el.classList.toggle("active", !network);
       el.onclick = () => {
-        if (experience.coverageFocusBu) setCoverageFocus(null);
+        if (!network) setCoverageFocus(null);
         else {
           const heaviest = bus[0]?.bu_name;
           if (heaviest) setCoverageFocus(heaviest);
@@ -503,6 +553,8 @@
       if (Lyr[k]) Lyr[k].clearLayers();
     });
 
+    const { sum, network, inFocus, utIn, filters } = viewScope();
+    const belowBu = !network && sum.level !== "bu";
     const bounds = [];
     if (experience.lagos?.features?.length) {
       L.geoJSON(experience.lagos, {
@@ -514,7 +566,7 @@
     const popOpts = window.IKEDC?.popupOpts || { maxWidth: 360, className: "ikedc-map-popup" };
 
     data.map.bu_polygons.forEach((b) => {
-      const dim = experience.coverageFocusBu && b.bu_name !== experience.coverageFocusBu;
+      const dim = !inFocus(b.bu_name);
       b.rings.forEach((ring) => {
         const latlngs = ring.map(([lon, lat]) => [lat, lon]);
         L.polygon(latlngs, {
@@ -526,32 +578,36 @@
           .bindPopup(pop?.bu?.(b) || `<strong>${buLabel(b.bu_name)}</strong>`, popOpts)
           .on("click", () => setCoverageFocus(b.bu_name))
           .addTo(Lyr.bus);
-        if (!dim) latlngs.forEach((ll) => bounds.push(ll));
+        if (!dim && !belowBu) latlngs.forEach((ll) => bounds.push(ll));
       });
     });
 
     (data.map.ut_polygons || []).forEach((u) => {
-      if (experience.coverageFocusBu && u.bu_name !== experience.coverageFocusBu) return;
+      if (!inFocus(u.bu_name)) return;
+      const picked = belowBu && utIn(u.ut_name);
+      if (belowBu && !picked) return;
       u.rings.forEach((ring) => {
         const latlngs = ring.map(([lon, lat]) => [lat, lon]);
+        if (picked) latlngs.forEach((ll) => bounds.push(ll));
         L.polygon(latlngs, {
-          color: u.fill_hex, weight: 1, fillOpacity: 0.04, dashArray: "4 4",
+          color: u.fill_hex, weight: picked ? 2 : 1, fillOpacity: picked ? 0.12 : 0.04, dashArray: "4 4",
         })
           .bindPopup(pop?.ut?.(u) || `<strong>${u.ut_name}</strong> (${buLabel(u.bu_name)})`, popOpts)
           .addTo(Lyr.ut);
       });
     });
 
+    /* Feeder layer names are the short tails of register names (11-…INJ-T1-<tail>) */
+    const pickedTails = new Set((filters.feeders || []).map((n) => String(n).split("-").pop().trim().toLowerCase()));
     const feeders = window.IKEDC?.getFeedersGeo?.();
     if (feeders?.features) {
       feeders.features.forEach((feat) => {
         const p = feat.properties || {};
         const bu = p.new_bu || p.bu;
-        if (experience.coverageFocusBu && bu && bu !== experience.coverageFocusBu) return;
+        if (bu && !inFocus(bu)) return;
         const name = p.feeder || p.name || "";
         const display = window.IKEDC?.feederDisplayName?.(name, p.voltage) || name;
-        const isFocus = experience.coverageFocusFeeder &&
-          String(name).toLowerCase() === String(experience.coverageFocusFeeder).toLowerCase();
+        const isFocus = pickedTails.has(String(name).trim().toLowerCase());
         const is33 = String(p.voltage || "").includes("33");
         const style = isFocus
           ? { color: "#ff4d4d", weight: 3.8, opacity: 1, className: "feeder-line feeder-focus", lineCap: "round" }
@@ -561,21 +617,14 @@
           style,
           onEachFeature: (_f, lyr) => {
             lyr.bindPopup(pop?.feeder?.(p) || `<strong>${display}</strong><br>${p.voltage || ""} · ${bu || "—"} / ${p.new_ut || "—"}`, popOpts);
-            lyr.on("click", () => {
-              experience.coverageFocusFeeder =
-                experience.coverageFocusFeeder === name ? null : name;
-              redrawCoverageLayers(data);
-              renderCovFeederList(data);
-            });
+            lyr.on("click", () => toggleCoverageFeeder(name, p.voltage));
           },
         }).addTo(is33 ? Lyr.feeders33 : Lyr.feeders11);
       });
     }
 
-    const dts = (data.map.dt_sample || []).filter((d) => {
-      if (experience.coverageFocusBu && d.bu !== experience.coverageFocusBu) return false;
-      return true;
-    });
+    const dts = network ? (data.map.dt_sample || []) : (window.IKEDC?.getScopeDTs?.() || []);
+    if (sum?.level === "dt") dts.forEach((d) => { if (d.lat != null) bounds.push([d.lat, d.lon]); });
     const renderer = experience.coverageDtRenderer;
     dts.forEach((p) => {
       const priv = String(p.own || "").toUpperCase().includes("PRIVATE");
@@ -613,12 +662,12 @@
 
     const labels = experience.labels || window.IKEDC?.getLabels?.() || { bu: [], ut: [] };
     (labels.bu || []).forEach((lab) => {
-      if (experience.coverageFocusBu && lab.name !== experience.coverageFocusBu) return;
+      if (!inFocus(lab.name)) return;
       L.marker([lab.lat, lab.lon], { icon: mapLabelIcon(lab.name, "bu", lab.fill), interactive: false })
         .addTo(Lyr.buLabels);
     });
     (labels.ut || []).forEach((lab) => {
-      if (experience.coverageFocusBu && lab.bu !== experience.coverageFocusBu) return;
+      if (!inFocus(lab.bu) || (belowBu && !utIn(lab.name))) return;
       L.marker([lab.lat, lab.lon], { icon: mapLabelIcon(lab.name, "ut", lab.fill), interactive: false })
         .addTo(Lyr.utLabels);
     });
@@ -653,6 +702,8 @@
   function renderCovChips(data) {
     const host = $("#cov-bu-chips");
     if (!host) return;
+    const { network, inFocus } = viewScope();
+    const perBu = scopeCountsByBu(data);
     host.innerHTML = `
       <table class="cov-bu-table" role="grid" aria-label="Filter by Business Unit">
         <thead>
@@ -667,11 +718,14 @@
         <tbody>
           ${data.business_units.map((b) => {
             const dens = b.dt_per_km2 ?? (b.area_km2 ? +(b.dt_total / b.area_km2).toFixed(1) : 0);
-            const active = experience.coverageFocusBu === b.bu_name ? "active" : "";
+            const active = !network && inFocus(b.bu_name) ? "active" : "";
+            /* DTs inside the active filters, with the BU total when they differ */
+            const inFilter = network || !perBu ? b.dt_total : perBu[b.bu_name]?.total || 0;
+            const ofBu = inFilter !== b.dt_total ? ` <span class="cell-sub">of ${fmt.format(b.dt_total)}</span>` : "";
             return `<tr class="cov-bu-row ${active}" data-bu="${b.bu_name}" style="--bu-accent:${b.fill_hex}">
               <td class="cov-bu-name"><span class="cov-bu-swatch" aria-hidden="true"></span>${buLabel(b.bu_name)}</td>
               <td>${b.ut_count}</td>
-              <td>${fmt.format(b.dt_total)}</td>
+              <td>${fmt.format(inFilter)}${ofBu}</td>
               <td>${b.area_km2.toFixed(1)}</td>
               <td>${Number(dens).toFixed(1)}</td>
             </tr>`;
@@ -694,6 +748,8 @@
   function renderCovInsights(data, totalArea) {
     const host = $("#cov-insights");
     if (!host) return;
+    const { sum, network } = viewScope();
+    const k = data.kpis;
     const bus = data.business_units.slice().sort((a, b) => b.dt_total - a.dt_total);
     const densest = data.business_units.slice().sort((a, b) => (b.dt_total / b.area_km2) - (a.dt_total / a.area_km2))[0];
     const widest = data.business_units.slice().sort((a, b) => b.area_km2 - a.area_km2)[0];
@@ -726,14 +782,18 @@
       {
         bu: null,
         title: "Public vs private",
-        metric: `${fmt.format(data.kpis.dt_public)} / ${fmt.format(data.kpis.dt_private)}`,
-        body: "Public and private transformers across the full DT register.",
+        metric: network || sum.dtPublic == null
+          ? `${fmt.format(k.dt_public)} / ${fmt.format(k.dt_private)}`
+          : `${fmt.format(sum.dtPublic)} / ${fmt.format(sum.dtPrivate)}`,
+        body: network || sum.dtPublic == null
+          ? "Public and private transformers across the full DT register."
+          : `Public and private transformers in ${sum.label}.`,
       },
       {
         bu: null,
         title: "Network corridors",
-        metric: `${data.kpis.feeders_11kv} · ${data.kpis.feeders_33kv}`,
-        body: "11 kV and 33 kV feeders tagged to 2026 Business Units.",
+        metric: network ? `${k.feeders_11kv} · ${k.feeders_33kv}` : `${sum.feeders11 || 0} · ${sum.feeders33 || 0}`,
+        body: network ? "11 kV and 33 kV feeders tagged to 2026 Business Units." : `11 kV and 33 kV feeders in ${sum.label}.`,
       },
     ];
     host.innerHTML = cards.map((c) => `
@@ -755,10 +815,9 @@
     if (!host) return;
     const fullName = (f) =>
       window.IKEDC?.feederDisplayName?.(f.feeder, f.voltage) || f.feeder;
-    let rows = (data.feeders || []).slice();
-    if (experience.coverageFocusBu) {
-      rows = rows.filter((f) => f.new_bu === experience.coverageFocusBu);
-    }
+    const picked = new Set(window.IKEDC?.getFilters?.()?.feeders || []);
+    /* Same feeders and register DT counts as the Operations feeder table */
+    let rows = (window.IKEDC?.getScopeFeeders?.() || data.feeders || []).slice();
     rows.sort((a, b) => (b.dt_count || 0) - (a.dt_count || 0));
     rows = rows.slice(0, 18);
     if (!rows.length) {
@@ -781,8 +840,8 @@
           <tbody>
             ${rows.map((f) => {
               const name = fullName(f);
-              const active = experience.coverageFocusFeeder === f.feeder ? "active" : "";
-              return `<tr class="${active}" data-feeder="${encodeURIComponent(f.feeder)}" title="${name}">
+              const active = (f.register_names || []).some((n) => picked.has(n)) ? "active" : "";
+              return `<tr class="${active}" data-feeder="${encodeURIComponent(f.feeder)}" data-voltage="${f.voltage || ""}" title="${name}">
                 <td class="feeder-name-cell">${name}</td>
                 <td>${String(f.voltage || "").replace(/kV/i, "") || "—"}</td>
                 <td>${f.new_bu || "—"}</td>
@@ -795,21 +854,7 @@
         </table>
       </div>`;
     host.querySelectorAll("tr[data-feeder]").forEach((tr) => {
-      tr.addEventListener("click", () => {
-        const feeder = decodeURIComponent(tr.dataset.feeder || "");
-        if (experience.coverageFocusFeeder === feeder) {
-          experience.coverageFocusFeeder = null;
-        } else {
-          experience.coverageFocusFeeder = feeder;
-          if (!experience.coverageFocusBu) {
-            const row = rows.find((r) => r.feeder === feeder);
-            if (row?.new_bu) experience.coverageFocusBu = row.new_bu;
-          }
-        }
-        redrawCoverageLayers(data);
-        renderCovFeederList(data);
-        renderCovChips(data);
-      });
+      tr.addEventListener("click", () => toggleCoverageFeeder(decodeURIComponent(tr.dataset.feeder || ""), tr.dataset.voltage));
     });
   }
 
@@ -823,7 +868,7 @@
     IKEJA: "Ikeja Business Unit anchors the franchise with 10 Undertakings and the largest DT register — the operational centre of gravity for crews and planners.",
     AKOWONJO: "Akowonjo Business Unit spans 10 Undertakings across a mixed urban fabric, including Dopemu — the heaviest single Undertaking by transformer count.",
     IKORODU: "Ikorodu Business Unit is the widest territory — nearly two-thirds of franchise area — where feeder length and travel time dominate workload design.",
-    OSHODI: "Oshodi Business Unit consolidated from a larger pre-2026 UT set into six Undertakings, with a nearly even public/private transformer mix.",
+    OSHODI: "Oshodi Business Unit consolidated from a larger pre-October 1, 2026 UT set into six Undertakings, with a nearly even public/private transformer mix.",
     SHOMOLU: "Shomolu Business Unit is the densest territory — compact geography, short asset spacing, and high transformers per square kilometre.",
   };
 
@@ -929,14 +974,7 @@
 
     if (!experience.storyBooted) {
       experience.storyBooted = true;
-      const stats = $("#story-stats");
-      if (stats) {
-        stats.innerHTML = `
-          <div><strong>${data.kpis.bu_2026}</strong><span>Business Units</span></div>
-          <div><strong>${data.kpis.ut_2026}</strong><span>Undertakings</span></div>
-          <div><strong>${fmt.format(data.kpis.dt_total)}</strong><span>Distribution transformers</span></div>
-          <div><strong>${data.kpis.feeders_total}</strong><span>MV feeders</span></div>`;
-      }
+      renderStoryStats(data);
 
       const cards = $("#story-bu-cards");
       if (cards) {
@@ -958,6 +996,9 @@
 
       wireStoryTabs();
       initStoryCharts(data);
+      markStoryBuCards();
+    } else if (experience.storyDirty) {
+      refreshStoryForFilters();
     } else {
       requestAnimationFrame(() => {
         Object.values(experience.storyCharts).forEach((c) => {
@@ -966,6 +1007,52 @@
       });
     }
     showStoryTab(experience.storyTab || "glance", { animate: !experience.storyBooted });
+  }
+
+  /** Headline stats follow the shared filters; the scope line says what they cover */
+  function renderStoryStats(data) {
+    const { sum, network } = viewScope();
+    const k = data.kpis;
+    const stats = $("#story-stats");
+    if (stats) {
+      stats.innerHTML = `
+        <div><strong>${network ? k.bu_2026 : sum.buCount}</strong><span>Business Units</span></div>
+        <div><strong>${network ? k.ut_2026 : sum.utCount}</strong><span>Undertakings</span></div>
+        <div><strong>${fmt.format(network ? k.dt_total : sum.dtTotal)}</strong><span>Distribution transformers</span></div>
+        <div><strong>${network ? k.feeders_total : fmt.format(sum.feederCount)}</strong><span>MV feeders</span></div>`;
+    }
+    const scope = $("#story-scope");
+    if (scope) {
+      scope.hidden = network;
+      scope.innerHTML = network ? "" : `Showing <strong>${sum.label}</strong> — the dashboard filters apply here too. Use Reset to see the whole network.`;
+    }
+    const moved = $("#story-moved-count");
+    if (moved) moved.textContent = fmt.format(networkMovedCount(data));
+  }
+
+  function markStoryBuCards() {
+    const { network, inFocus } = viewScope();
+    $$("#story-bu-cards [data-bu]").forEach((btn) => {
+      const on = !network && inFocus(btn.dataset.bu);
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  /** Bring the Story map in line with the current filters (lazily while it is hidden) */
+  function refreshStoryForFilters() {
+    if (experience.view !== "story") {
+      experience.storyDirty = true;
+      return;
+    }
+    experience.storyDirty = false;
+    const data = window.IKEDC?.getData?.();
+    if (!data) return;
+    renderStoryStats(data);
+    markStoryBuCards();
+    initStoryCharts(data);
+    const { sum, network } = viewScope();
+    applyStoryMapFocus(!network && sum.bus.length === 1 ? sum.bus[0] : null);
   }
 
   function clearLayerGroup(group) {
@@ -1201,6 +1288,13 @@
     destroyStoryCharts();
     const bus = data.business_units;
     const t = chartColors();
+    const { sum, network, inFocus, utIn } = viewScope();
+    const perBu = scopeCountsByBu(data);
+    /* BU comparison charts keep every BU for context and fade the ones outside the filters */
+    const fade = (hex, bu) => (inFocus(bu) ? hex : `${hex}44`);
+    const inFilter = (b) => (network || !perBu ? b.dt_total : perBu[b.bu_name]?.total || 0);
+    const inFilterPriv = (b) => (network || !perBu ? b.dt_private : perBu[b.bu_name]?.priv || 0);
+    const dtBus = network ? bus : bus.filter((b) => inFocus(b.bu_name) && inFilter(b) > 0);
 
     const interactive = (onClick) => ({
       responsive: true,
@@ -1276,10 +1370,10 @@
     mk("story-chart-glance-bu", {
       type: "doughnut",
       data: {
-        labels: bus.map((b) => b.bu_name),
+        labels: dtBus.map((b) => b.bu_name),
         datasets: [{
-          data: bus.map((b) => b.dt_total),
-          backgroundColor: bus.map((b) => b.fill_hex),
+          data: dtBus.map(inFilter),
+          backgroundColor: dtBus.map((b) => b.fill_hex),
           borderWidth: 2,
           borderColor: t.light ? "#ffffff" : "#0b1017",
         }],
@@ -1289,7 +1383,7 @@
         maintainAspectRatio: false,
         onClick: (_e, elems) => {
           if (!elems.length) return;
-          storyFilterBu(bus[elems[0].index]?.bu_name);
+          storyFilterBu(dtBus[elems[0].index]?.bu_name);
         },
         plugins: {
           legend: { position: "bottom", labels: { color: t.text, boxWidth: 10 } },
@@ -1304,8 +1398,8 @@
       data: {
         labels: (data.feeders_by_bu || []).map((r) => (!r.bu_name || r.bu_name === "Unknown" || r.bu_name.startsWith("Unassigned") ? ["Unassigned", "(no DTs linked)"] : r.bu_name)),
         datasets: [
-          { label: "Feeders", data: (data.feeders_by_bu || []).map((r) => r.feeder_count), backgroundColor: "#1f6fb2", borderRadius: 6 },
-          { label: "Length km", data: (data.feeders_by_bu || []).map((r) => Math.round(r.len_km)), backgroundColor: "#d99a1e", borderRadius: 6 },
+          { label: "Feeders", data: (data.feeders_by_bu || []).map((r) => r.feeder_count), backgroundColor: (data.feeders_by_bu || []).map((r) => fade("#1f6fb2", r.bu_name)), borderRadius: 6 },
+          { label: "Length km", data: (data.feeders_by_bu || []).map((r) => Math.round(r.len_km)), backgroundColor: (data.feeders_by_bu || []).map((r) => fade("#d99a1e", r.bu_name)), borderRadius: 6 },
         ],
       },
       options: {
@@ -1334,7 +1428,7 @@
         labels: ["DTs moved BU", "UTs consolidated", "BUs reduced"],
         datasets: [{
           label: "Change",
-          data: [2717, (data.kpis.ut_existing - data.kpis.ut_2026), (data.kpis.bu_existing - data.kpis.bu_2026)],
+          data: [networkMovedCount(data), (data.kpis.ut_existing - data.kpis.ut_2026), (data.kpis.bu_existing - data.kpis.bu_2026)],
           backgroundColor: ["#c8452c", "#d99a1e", "#1f6fb2"],
           borderRadius: 6,
         }],
@@ -1361,7 +1455,7 @@
         datasets: [{
           label: "Area km²",
           data: bus.map((b) => b.area_km2),
-          backgroundColor: bus.map((b) => b.fill_hex),
+          backgroundColor: bus.map((b) => fade(b.fill_hex, b.bu_name)),
           borderRadius: 6,
         }],
       },
@@ -1391,7 +1485,7 @@
         datasets: [{
           label: "Undertakings",
           data: bus.map((b) => b.ut_count),
-          backgroundColor: "#7a4fb5",
+          backgroundColor: bus.map((b) => fade("#7a4fb5", b.bu_name)),
           borderRadius: 6,
         }],
       },
@@ -1422,7 +1516,7 @@
         datasets: [{
           label: "Agreement %",
           data: qualityUts.map((u) => u.agreement_pct),
-          backgroundColor: "#2e8b57",
+          backgroundColor: qualityUts.map((u) => (utIn(u.ut_name) ? "#2e8b57" : "#2e8b5744")),
           borderRadius: 4,
         }],
       },
@@ -1487,7 +1581,7 @@
         datasets: [{
           label: "Mean agreement %",
           data: byBuAgree,
-          backgroundColor: bus.map((b) => b.fill_hex),
+          backgroundColor: bus.map((b) => fade(b.fill_hex, b.bu_name)),
           borderRadius: 6,
         }],
       },
@@ -1513,10 +1607,10 @@
     mk("story-chart-bu", {
       type: "bar",
       data: {
-        labels: bus.map((b) => b.bu_name),
+        labels: dtBus.map((b) => b.bu_name),
         datasets: [
-          { label: "Public", data: bus.map((b) => b.dt_public), backgroundColor: "#1f6fb2", borderRadius: 5 },
-          { label: "Private", data: bus.map((b) => b.dt_private), backgroundColor: "#c8452c", borderRadius: 5 },
+          { label: "Public", data: dtBus.map((b) => inFilter(b) - inFilterPriv(b)), backgroundColor: "#1f6fb2", borderRadius: 5 },
+          { label: "Private", data: dtBus.map(inFilterPriv), backgroundColor: "#c8452c", borderRadius: 5 },
         ],
       },
       options: {
@@ -1525,7 +1619,7 @@
         layout: { padding: { top: 18 } },
         onClick: (_e, elems) => {
           if (!elems.length) return;
-          storyFilterBu(bus[elems[0].index]?.bu_name);
+          storyFilterBu(dtBus[elems[0].index]?.bu_name);
         },
         plugins: {
           valueLabels: { display: true, decimals: 0, fontSize: 11 },
@@ -1543,7 +1637,7 @@
       data: {
         labels: ["Business Units", "Undertakings"],
         datasets: [
-          { label: "Pre-2026", data: [data.kpis.bu_existing, data.kpis.ut_existing], backgroundColor: "#6b7c90", borderRadius: 6 },
+          { label: "Pre-October 1, 2026", data: [data.kpis.bu_existing, data.kpis.ut_existing], backgroundColor: "#6b7c90", borderRadius: 6 },
           { label: "2026", data: [data.kpis.bu_2026, data.kpis.ut_2026], backgroundColor: "#e8a317", borderRadius: 6 },
         ],
       },
@@ -1569,7 +1663,7 @@
         datasets: [{
           label: "DTs / km²",
           data: bus.map((b) => +(b.dt_total / b.area_km2).toFixed(1)),
-          backgroundColor: bus.map((b) => b.fill_hex),
+          backgroundColor: bus.map((b) => fade(b.fill_hex, b.bu_name)),
           borderRadius: 6,
         }],
       },
@@ -1597,7 +1691,7 @@
       data: {
         labels: ["PUBLIC", "PRIVATE"],
         datasets: [{
-          data: [data.kpis.dt_public, data.kpis.dt_private],
+          data: network || sum.dtPublic == null ? [data.kpis.dt_public, data.kpis.dt_private] : [sum.dtPublic, sum.dtPrivate],
           backgroundColor: ["#1f6fb2", "#c8452c"],
           borderWidth: 2,
           borderColor: t.light ? "#ffffff" : "#0b1017",
@@ -1626,7 +1720,7 @@
         datasets: [{
           label: "Agreement %",
           data: byBuAgree,
-          backgroundColor: "#2e8b57",
+          backgroundColor: bus.map((b) => fade("#2e8b57", b.bu_name)),
           borderRadius: 6,
         }],
       },
@@ -1652,10 +1746,10 @@
     const tbody = $("#story-bu-table tbody");
     if (tbody) {
       tbody.innerHTML = bus.map((b) => `
-        <tr data-bu="${b.bu_name}">
+        <tr data-bu="${b.bu_name}" class="${!network && inFocus(b.bu_name) ? "active" : ""}">
           <td>${buLabel(b.bu_name)}</td>
           <td>${b.ut_count}</td>
-          <td>${b.dt_total.toLocaleString()}</td>
+          <td>${fmt.format(inFilter(b))}${inFilter(b) !== b.dt_total ? ` <span class="cell-sub">of ${fmt.format(b.dt_total)}</span>` : ""}</td>
           <td>${b.area_km2.toFixed(1)}</td>
           <td>${(b.dt_per_km2 ?? (b.dt_total / b.area_km2)).toFixed(1)}</td>
         </tr>`).join("");
