@@ -225,6 +225,7 @@
                 <h2>Workload by Business Unit</h2>
                 <p>Distribution transformers · public vs private</p>
               </div>
+              <p class="chart-scope" id="scope-workload" hidden></p>
               <div class="chart-box h-220"><canvas id="chart-bu-dt"></canvas></div>
             </div>
             <div class="card">
@@ -282,6 +283,7 @@
               <h2>DT density (per km²)</h2>
               <p>Workload intensity by Business Unit</p>
             </div>
+            <p class="chart-scope" id="scope-density" hidden></p>
             <div class="chart-box h-260"><canvas id="chart-density"></canvas></div>
           </div>
           <div class="card">
@@ -289,6 +291,8 @@
               <h2>Ownership &amp; install position</h2>
               <p>Public / private mix and ground vs other mounting</p>
             </div>
+            <p class="chart-scope chart-scope--label" id="scope-ownership-label" hidden></p>
+            <p class="chart-scope" id="scope-ownership" hidden></p>
             <div class="split-charts">
               <div class="chart-box h-220"><canvas id="chart-ownership"></canvas></div>
               <div class="chart-box h-220"><canvas id="chart-install"></canvas></div>
@@ -299,6 +303,7 @@
               <h2>BU reassignments in the DT register</h2>
               <p>Old BU → NEW_BU_2026 where the name changed</p>
             </div>
+            <p class="chart-scope" id="scope-reassign" hidden></p>
             <div class="chart-box h-280"><canvas id="chart-reassign"></canvas></div>
           </div>
           <div class="card wide">
@@ -306,6 +311,7 @@
               <h2>Capacity classes (kVA)</h2>
               <p>Installed transformer capacity distribution</p>
             </div>
+            <p class="chart-scope" id="scope-capacity" hidden></p>
             <div class="chart-box h-260"><canvas id="chart-capacity"></canvas></div>
           </div>
         </div>

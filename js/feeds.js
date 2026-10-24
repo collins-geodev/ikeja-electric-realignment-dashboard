@@ -1,10 +1,15 @@
 /* Shared live feeds client — Intelligence, Coverage, Story + in-dashboard mini browser */
 (() => {
-  const REFRESH_MS = 3 * 60 * 1000;
+  const REFRESH_MS = 5 * 60 * 1000;
   const ENDPOINTS = ["/api/feeds", "/api/feeds.js"];
   let cache = null;
   let inflight = null;
   let timer = 0;
+  let ticker = 0;
+  /** Epoch ms of the next scheduled auto-refresh */
+  let nextAt = 0;
+  /** Last fetch reached the feeds API (false = offline / API unreachable) */
+  let lastFetchOk = null;
   /** @type {string|null} shared source filter id; null = all */
   let activeSourceId = null;
   const mounts = new Map();
@@ -318,6 +323,41 @@
     });
   }
 
+  function isLive(data) {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return false;
+    if (!lastFetchOk) return false;
+    const sources = data?.sources || [];
+    return !sources.length || sources.some((s) => s.ok);
+  }
+
+  function fmtCountdown() {
+    const left = Math.max(0, Math.ceil((nextAt - Date.now()) / 1000));
+    return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+  }
+
+  function renderStatus(data) {
+    const live = isLive(data);
+    const label = live ? "Live" : "Offline";
+    const tip = live
+      ? "Live feeds connected — auto-refreshing every 5 minutes"
+      : "Live feeds offline — showing last known updates, retrying automatically";
+    return `<span class="live-status ${live ? "is-live" : "is-offline"}" role="status" title="${tip}" aria-label="${tip}">
+        <span class="live-status-dot" aria-hidden="true"></span>${label}
+      </span>`;
+  }
+
+  /** Keep "refreshed …" and countdown text current between renders */
+  function tick() {
+    const stamp = cache?.data?.generatedAt ? fmtWhen(cache.data.generatedAt) : "";
+    const next = fmtCountdown();
+    mounts.forEach((_, id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.querySelectorAll("[data-feed-next]").forEach((n) => { n.textContent = next; });
+      if (stamp) el.querySelectorAll("[data-feed-stamp]").forEach((n) => { n.textContent = stamp; });
+    });
+  }
+
   function renderInto(el, data, opts = {}) {
     if (!el) return;
     const limit = opts.limit || 10;
@@ -333,6 +373,7 @@
 
     if (!allItems.length) {
       el.innerHTML = `${renderFilterTabs(sources)}
+        <div class="live-feed-meta">${renderStatus(data)}<span>Next update in <span data-feed-next>${fmtCountdown()}</span></span></div>
         <div class="live-feed-empty">Live feeds unavailable right now. Retrying…</div>`;
       wireTabs(el);
       return;
@@ -341,7 +382,8 @@
     el.innerHTML = `
       ${renderFilterTabs(sources)}
       <div class="live-feed-meta">
-        <span>Live · ${okCount}/${sources.length || "—"} sources${stamp ? ` · refreshed ${stamp}` : ""} · showing ${escapeHtml(filterLabel)}</span>
+        ${renderStatus(data)}
+        <span class="live-feed-meta-text">${okCount}/${sources.length || "—"} sources${stamp ? ` · refreshed <span data-feed-stamp>${stamp}</span>` : ""} · next in <span data-feed-next>${fmtCountdown()}</span> · showing ${escapeHtml(filterLabel)}</span>
       </div>
       ${
         items.length
@@ -385,24 +427,30 @@
     }
   }
 
-  async function fetchFeeds(force) {
-    if (!force && cache && Date.now() - cache.at < REFRESH_MS) return cache.data;
+  /** force: bypass server cache; auto: scheduled tick, skip the client cache only */
+  async function fetchFeeds(force, auto) {
+    if (!force && !auto && cache && Date.now() - cache.at < REFRESH_MS) return cache.data;
     if (inflight) return inflight;
     inflight = (async () => {
       let lastErr = null;
+      /* 5-minute bucket so scheduled ticks skip stale CDN copies but still share the server cache */
+      const query = force ? "?refresh=1" : auto ? `?t=${Math.floor(Date.now() / REFRESH_MS)}` : "";
       for (const url of ENDPOINTS) {
         try {
-          const res = await fetch(`${url}${force ? "?refresh=1" : ""}`, {
+          const res = await fetch(`${url}${query}`, {
             headers: { Accept: "application/json" },
+            cache: "no-store",
           });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
           cache = { at: Date.now(), data };
+          lastFetchOk = true;
           return data;
         } catch (err) {
           lastErr = err;
         }
       }
+      lastFetchOk = false;
       if (cache?.data) return cache.data;
       throw lastErr || new Error("Feeds failed");
     })();
@@ -413,18 +461,32 @@
     }
   }
 
-  async function refreshAll(force) {
+  function scheduleNext() {
+    window.clearTimeout(timer);
+    nextAt = Date.now() + REFRESH_MS;
+    timer = window.setTimeout(() => refreshAll(false, true), REFRESH_MS);
+  }
+
+  async function refreshAll(force, auto) {
+    if (force || auto || !timer) scheduleNext();
     try {
-      const data = await fetchFeeds(force);
+      const data = await fetchFeeds(force, auto);
       mounts.forEach((opts, id) => {
         renderInto(document.getElementById(id), data, opts);
       });
     } catch (err) {
       mounts.forEach((_, id) => {
         const el = document.getElementById(id);
-        if (el && !el.querySelector(".live-feed-list")) {
-          el.innerHTML = `${renderFilterTabs([])}<div class="live-feed-empty">Waiting for live feeds…</div>`;
+        if (!el) return;
+        if (!el.querySelector(".live-feed-list")) {
+          el.innerHTML = `${renderFilterTabs([])}
+            <div class="live-feed-meta">${renderStatus(null)}<span>Retrying in <span data-feed-next>${fmtCountdown()}</span></span></div>
+            <div class="live-feed-empty">Waiting for live feeds…</div>`;
           wireTabs(el);
+        } else {
+          /* Keep last known items visible but flip the indicator to offline */
+          const status = el.querySelector(".live-status");
+          if (status) status.outerHTML = renderStatus(null);
         }
       });
       console.warn("[feeds]", err);
@@ -441,8 +503,19 @@
       wireTabs(el);
     }
     scheduleTask(() => refreshAll(false));
-    if (!timer) {
-      timer = window.setInterval(() => refreshAll(false), REFRESH_MS);
+    if (!ticker) {
+      ticker = window.setInterval(tick, 1000);
+      window.addEventListener("online", () => refreshAll(false, true));
+      window.addEventListener("offline", () => {
+        mounts.forEach((_, mid) => {
+          const status = document.getElementById(mid)?.querySelector(".live-status");
+          if (status) status.outerHTML = renderStatus(null);
+        });
+      });
+      /* Background tabs throttle timers — catch up as soon as the tab is visible again */
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && nextAt && Date.now() >= nextAt) refreshAll(false, true);
+      });
     }
   }
 

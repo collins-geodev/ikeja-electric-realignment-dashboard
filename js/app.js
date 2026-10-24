@@ -304,17 +304,130 @@
 
   const inSet = (arr, value) => empty(arr) || arr.includes(value);
 
+  const uniq = (arr) => [...new Set(arr.filter(Boolean))];
+
+  /** Feeder meta rows (BU / UT / length) for a register feeder name — exact tail + voltage match first */
+  function feederMetaFor(name) {
+    const tail = String(name || "").split("-").pop().trim().toLowerCase();
+    const volt = guessVoltage(name);
+    let hits = state.data.feeders.filter((f) => String(f.feeder).trim().toLowerCase() === tail);
+    if (hits.length > 1 && hits.some((f) => f.voltage === volt)) hits = hits.filter((f) => f.voltage === volt);
+    if (hits.length > 1 && hits.some((f) => f.new_ut)) hits = hits.filter((f) => f.new_ut);
+    if (!hits.length) hits = state.data.feeders.filter((f) => matchFeederLine(f.feeder, [name]));
+    return hits;
+  }
+
+  let _sampleByFeeder = null;
+  function sampleByFeeder() {
+    if (_sampleByFeeder) return _sampleByFeeder;
+    _sampleByFeeder = new Map();
+    (state.data.map.dt_sample || []).forEach((d) => {
+      if (!d.feeder) return;
+      if (!_sampleByFeeder.has(d.feeder)) _sampleByFeeder.set(d.feeder, []);
+      _sampleByFeeder.get(d.feeder).push(d);
+    });
+    return _sampleByFeeder;
+  }
+
+  /** Exact DT count for a register feeder name */
+  const feederDtCount = (name) => {
+    const nom = state.data.nomenclature?.feeders?.find((n) => n.name === name);
+    if (nom) return nom.count;
+    return feederMetaFor(name).reduce((sum, f) => sum + (f.dt_count || 0), 0);
+  };
+
+  /**
+   * Resolve the active filters to the BUs / UTs they cover.
+   * level = finest filter applied (network → bu → ut → feeder → dt); charts whose
+   * published data stops at a coarser level use these BUs / UTs and say so.
+   */
+  function analyticsScope() {
+    const allUts = state.data.undertakings;
+    const utBu = (ut) => allUts.find((u) => u.ut_name === ut)?.bu_name;
+    let level = "network";
+    let label = "All Business Units";
+    let uts = [];
+    let bus = [];
+    const sample = state.data.map.dt_sample || [];
+    if (!empty(state.dts)) {
+      level = "dt";
+      const rows = sample.filter((d) => state.dts.includes(d.name));
+      uts = rows.map((d) => d.ut);
+      bus = rows.map((d) => d.bu);
+      label = state.dts.length === 1 ? `DT ${state.dts[0]}` : `${fmt.format(state.dts.length)} selected DTs`;
+    } else if (!empty(state.feeders)) {
+      level = "feeder";
+      state.feeders.forEach((name) => {
+        feederMetaFor(name).forEach((f) => { uts.push(f.new_ut); bus.push(f.new_bu); });
+        (sampleByFeeder().get(name) || []).forEach((d) => { uts.push(d.ut); bus.push(d.bu); });
+      });
+      label = state.feeders.length === 1 ? `Feeder ${feederDisplayName(state.feeders[0])}` : `${state.feeders.length} selected feeders`;
+    } else if (!empty(state.uts)) {
+      level = "ut";
+      uts = state.uts.slice();
+      bus = uts.map(utBu);
+      label = uts.length === 1 ? `${utDisplayName(uts[0])} UT` : `${uts.length} selected UTs`;
+    } else if (!empty(state.bus)) {
+      level = "bu";
+      bus = state.bus.slice();
+      label = bus.length === 1 ? buDisplayName(bus[0]) : `${bus.length} selected BUs`;
+    }
+    uts = uniq(uts).filter((u) => inSet(state.bus, utBu(u)) && (level === "ut" || inSet(state.uts, u)));
+    bus = uniq(bus.concat(uts.map(utBu))).filter((b) => inSet(state.bus, b));
+    if (level === "bu" || level === "network") {
+      if (level === "network") bus = state.data.business_units.map((b) => b.bu_name);
+      uts = allUts.filter((u) => bus.includes(u.bu_name)).map((u) => u.ut_name);
+    } else if (!uts.length) {
+      /* Feeder / DT not linked to a 2026 UT — fall back to the explicit BU / UT picks */
+      bus = empty(state.bus) ? bus : state.bus.slice();
+      uts = allUts.filter((u) => inSet(state.uts, u.ut_name) && (bus.length ? bus.includes(u.bu_name) : !empty(state.uts))).map((u) => u.ut_name);
+    }
+    return { level, label, bus, uts };
+  }
+
+  const scopeUtLabel = (scope) =>
+    scope.uts.length === 1 ? `${utDisplayName(scope.uts[0])} UT` : `${scope.uts.length} UTs`;
+  const scopeBuLabel = (scope) =>
+    scope.bus.length === 1 ? buDisplayName(scope.bus[0]) : `${scope.bus.length} Business Units`;
+
   const filteredBUs = () => {
-    const bus = state.data.business_units;
-    return empty(state.bus) ? bus : bus.filter((b) => state.bus.includes(b.bu_name));
+    const scope = analyticsScope();
+    return state.data.business_units.filter((b) => scope.bus.includes(b.bu_name));
   };
 
   const filteredUTs = () => {
-    let uts = state.data.undertakings;
-    if (!empty(state.bus)) uts = uts.filter((u) => state.bus.includes(u.bu_name));
-    if (!empty(state.uts)) uts = uts.filter((u) => state.uts.includes(u.ut_name));
-    return uts;
+    const scope = analyticsScope();
+    return state.data.undertakings.filter((u) => scope.uts.includes(u.ut_name));
   };
+
+  /** Point-in-polygon (even-odd over every ring) for ISS / TCN counts per area */
+  function pointInRings(lon, lat, rings) {
+    let inside = false;
+    (rings || []).forEach((ring) => {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i];
+        const [xj, yj] = ring[j];
+        if ((yi > lat) !== (yj > lat) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+      }
+    });
+    return inside;
+  }
+
+  function stationsInScope(points, scope) {
+    if (scope.level === "network") return points.length;
+    const polys = scope.level === "bu"
+      ? state.data.map.bu_polygons.filter((p) => scope.bus.includes(p.bu_name))
+      : state.data.map.ut_polygons.filter((p) => scope.uts.includes(p.ut_name));
+    return points.filter((pt) => polys.some((p) => pointInRings(pt.lon, pt.lat, p.rings))).length;
+  }
+
+  /** Show "data is coarser than your filter" notes on chart cards */
+  function setScopeNote(id, text) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text || "";
+    el.hidden = !text;
+  }
 
   const feederCatalog = () => {
     const fromNom = state.data.nomenclature?.feeders;
@@ -544,7 +657,14 @@
     if (!empty(state.bus)) rows = rows.filter((f) => state.bus.includes(f.new_bu));
     if (!empty(state.uts)) rows = rows.filter((f) => state.uts.includes(f.new_ut));
     if (!empty(state.feeders)) {
-      rows = rows.filter((f) => matchFeederLine(f.feeder, state.feeders));
+      const hits = new Set(state.feeders.flatMap(feederMetaFor));
+      rows = rows.filter((f) => hits.has(f));
+    }
+    if (!empty(state.dts)) {
+      /* Feeders that supply the selected DTs */
+      const names = uniq((state.data.map.dt_sample || []).filter((d) => state.dts.includes(d.name)).map((d) => d.feeder));
+      const hits = new Set(names.flatMap(feederMetaFor));
+      rows = rows.filter((f) => hits.has(f));
     }
     if (state.fidelityBand) rows = rows.filter(fidelityMatch);
     return rows;
@@ -560,8 +680,8 @@
       const own = String(state.dtOwn).toUpperCase();
       dts = dts.filter((d) => String(d.own || "").toUpperCase().includes(own));
     }
-    if (state.installPos) {
-      const pos = String(state.installPos).toLowerCase();
+    if (state.installPos && dts.some((d) => d.install || d.install_pos || d.position)) {
+      const pos = String(state.installPos).toLowerCase().replace(/ mounted$/, "");
       dts = dts.filter((d) => String(d.install || d.install_pos || d.position || "").toLowerCase().includes(pos));
     }
     if (state.capacityBand) {
@@ -774,51 +894,51 @@
 
   function renderKPIs() {
     const k = state.data.kpis;
-    const bus = filteredBUs();
+    const scope = analyticsScope();
     const uts = filteredUTs();
-    const dts = filteredDTs();
-    const feeders = feederCatalog().filter((f) => {
-      if (!empty(state.feeders) && !state.feeders.includes(f.name)) return false;
-      if (!empty(state.bus) || !empty(state.uts)) {
-        const hit = dts.some((d) => d.feeder === f.name);
-        if (dts.length && !hit && !empty(state.bus)) {
-          /* keep catalog items that appear in filtered DTs */
-          return hit;
-        }
-      }
-      return true;
-    });
-    const feederCount = empty(state.feeders)
-      ? (empty(state.bus) && empty(state.uts) ? k.feeders_total : filteredFeedersMeta().length)
-      : state.feeders.length;
+    const sumUts = (key) => uts.reduce((acc, u) => acc + (u[key] || 0), 0);
 
-    const dtTotal = empty(state.dts) && empty(state.feeders) && empty(state.bus) && empty(state.uts)
-      ? k.dt_total
-      : (empty(state.dts) && empty(state.feeders)
-        ? uts.reduce((s, u) => s + u.dt_total, 0)
-        : dts.length);
-    const dtPub = empty(state.dts) && empty(state.feeders) && empty(state.bus) && empty(state.uts)
-      ? k.dt_public
-      : (empty(state.dts) && empty(state.feeders)
-        ? uts.reduce((s, u) => s + u.dt_public, 0)
-        : dts.filter((d) => d.own === "PUBLIC").length);
-    const dtPriv = empty(state.dts) && empty(state.feeders) && empty(state.bus) && empty(state.uts)
-      ? k.dt_private
-      : (empty(state.dts) && empty(state.feeders)
-        ? uts.reduce((s, u) => s + u.dt_private, 0)
-        : dts.filter((d) => d.own === "PRIVATE").length);
+    let dtTotal = k.dt_total;
+    let dtHint = `${fmt.format(k.dt_public)} public · ${fmt.format(k.dt_private)} private`;
+    if (scope.level === "bu" || scope.level === "ut") {
+      dtTotal = sumUts("dt_total");
+      dtHint = `${fmt.format(sumUts("dt_public"))} public · ${fmt.format(sumUts("dt_private"))} private`;
+    } else if (scope.level === "feeder") {
+      dtTotal = state.feeders.reduce((acc, name) => acc + feederDtCount(name), 0);
+      dtHint = "on selected feeder(s) · ownership split not recorded per feeder";
+    } else if (scope.level === "dt") {
+      const rows = (state.data.map.dt_sample || []).filter((d) => state.dts.includes(d.name));
+      dtTotal = state.dts.length;
+      dtHint = `${fmt.format(rows.filter((d) => d.own === "PUBLIC").length)} public · ${fmt.format(rows.filter((d) => d.own && d.own !== "PUBLIC").length)} private`;
+    }
+
     const meanAgree = uts.length
-      ? uts.reduce((s, u) => s + u.agreement_pct, 0) / uts.length
+      ? uts.reduce((acc, u) => acc + u.agreement_pct, 0) / uts.length
       : 0;
 
+    const feederRows = filteredFeedersMeta();
+    const dtFeeders = uniq((state.data.map.dt_sample || []).filter((d) => state.dts.includes(d.name)).map((d) => d.feeder));
+    const feederCount = scope.level === "network" && !state.fidelityBand
+      ? k.feeders_total
+      : (scope.level === "feeder" ? state.feeders.length : scope.level === "dt" ? dtFeeders.length : feederRows.length);
+    const feederVolts = scope.level === "network" && !state.fidelityBand
+      ? { kv11: k.feeders_11kv, kv33: k.feeders_33kv }
+      : scope.level === "feeder" || scope.level === "dt"
+        ? ((names) => ({ kv11: names.filter((f) => guessVoltage(f) === "11kV").length, kv33: names.filter((f) => guessVoltage(f) === "33kV").length }))(scope.level === "dt" ? dtFeeders : state.feeders)
+        : { kv11: feederRows.filter((f) => f.voltage === "11kV").length, kv33: feederRows.filter((f) => f.voltage === "33kV").length };
+
+    const issCount = stationsInScope(state.data.map.iss || [], scope);
+    const tcnCount = stationsInScope(state.data.map.tcn || [], scope);
+    const areaHint = scope.level === "network" ? null : `inside ${scope.level === "bu" ? scopeBuLabel(scope) : scopeUtLabel(scope)}`;
+
     const items = [
-      { label: "Distribution transformers", value: fmt.format(dtTotal), hint: `${fmt.format(dtPub)} public · ${fmt.format(dtPriv)} private`, open: "dt" },
-      { label: "Business Units", value: empty(state.bus) ? k.bu_2026 : state.bus.length, hint: empty(state.bus) ? `from ${k.bu_existing} previous` : state.bus.join(", "), open: "bu" },
-      { label: "Undertakings", value: empty(state.uts) ? uts.length : state.uts.length, hint: empty(state.uts) ? (empty(state.bus) ? `from ${k.ut_existing} previous` : "in selected BU(s)") : state.uts.join(", "), open: "ut" },
-      { label: "Mean register agreement", value: pct(meanAgree), hint: "DT register vs 2026 UT polygon" },
-      { label: "Feeders", value: feederCount, hint: `${feeders.filter((f) => f.voltage === "11kV").length || "—"} × 11 kV · ${feeders.filter((f) => f.voltage === "33kV").length || "—"} × 33 kV`, open: "feeder" },
-      { label: "Injection substations", value: k.iss, hint: `${fmt.format(k.loads_33kv)} 33 kV loads in TOC` },
-      { label: "TCN stations", value: k.tcn, hint: "transmission stations" },
+      { label: "Distribution transformers", value: fmt.format(dtTotal), hint: dtHint, open: "dt" },
+      { label: "Business Units", value: scope.level === "network" ? k.bu_2026 : scope.bus.length, hint: scope.level === "network" ? `from ${k.bu_existing} previous` : scope.bus.join(", ") || "—", open: "bu" },
+      { label: "Undertakings", value: uts.length, hint: scope.level === "network" ? `from ${k.ut_existing} previous` : (scope.level === "bu" ? "in selected BU(s)" : scope.uts.join(", ") || "—"), open: "ut" },
+      { label: "Mean register agreement", value: pct(meanAgree), hint: scope.level === "feeder" || scope.level === "dt" ? `DT register vs polygon · ${scopeUtLabel(scope)}` : "DT register vs 2026 UT polygon" },
+      { label: "Feeders", value: fmt.format(feederCount), hint: `${feederVolts.kv11 || "—"} × 11 kV · ${feederVolts.kv33 || "—"} × 33 kV`, open: "feeder" },
+      { label: "Injection substations", value: issCount, hint: areaHint || `${fmt.format(k.loads_33kv)} 33 kV loads in TOC` },
+      { label: "TCN stations", value: tcnCount, hint: areaHint || "transmission stations" },
     ];
 
     document.getElementById("kpi-strip").innerHTML = items
@@ -955,25 +1075,81 @@
     });
   }
 
-  function countsFor(field) {
-    if (empty(state.bus)) return state.data.dt_analytics.counts[field] || [];
+  /** Merge register spellings (POLE / Pole Mounted, GROUND / GROUND MOUNTED, NIL …) into one class */
+  function normaliseClass(field, raw) {
+    const v = String(raw || "").trim().toUpperCase();
+    if (!v || v === "UNKNOWN" || v === "NIL" || v === "N/A") return "Unknown";
+    if (field === "install_pos") {
+      if (v.startsWith("POLE")) return "POLE MOUNTED";
+      if (v.startsWith("GROUND")) return "GROUND MOUNTED";
+      return "Unknown";
+    }
+    return v;
+  }
+
+  /** Register class counts for the BUs in scope (published per BU only) */
+  function countsFor(field, bus) {
     const merged = {};
-    state.bus.forEach((bu) => {
-      (state.data.dt_analytics.by_bu[bu]?.[field] || []).forEach((row) => {
-        merged[row.name] = (merged[row.name] || 0) + row.count;
-      });
+    const add = (rows) => (rows || []).forEach((row) => {
+      const name = normaliseClass(field, row.name);
+      merged[name] = (merged[name] || 0) + row.count;
     });
+    if (!bus || bus.length === state.data.business_units.length) add(state.data.dt_analytics.counts[field]);
+    else bus.forEach((bu) => add(state.data.dt_analytics.by_bu[bu]?.[field]));
     return Object.entries(merged)
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count);
   }
 
+  /** Ownership at the finest published level: UT public / private totals, or the selected DTs */
+  function ownershipFor(scope) {
+    if (scope.level === "dt") {
+      const rows = (state.data.map.dt_sample || []).filter((d) => state.dts.includes(d.name));
+      const merged = {};
+      rows.forEach((d) => {
+        const name = normaliseClass("ownership", d.own);
+        merged[name] = (merged[name] || 0) + 1;
+      });
+      return { rows: Object.entries(merged).map(([name, count]) => ({ name, count })), note: "" };
+    }
+    /* Same public / private totals as the KPI strip and UT table, so every view adds up */
+    const uts = filteredUTs();
+    const rows = [
+      { name: "PUBLIC", count: uts.reduce((acc, u) => acc + u.dt_public, 0) },
+      { name: "PRIVATE", count: uts.reduce((acc, u) => acc + u.dt_private, 0) },
+    ];
+    const note = scope.level === "feeder"
+      ? `Ownership isn't recorded per feeder in the published register — showing ${scopeUtLabel(scope)} served by the selection.`
+      : "";
+    return { rows, note };
+  }
+
+  const OWN_COLORS = { PUBLIC: "#1f6fb2", PRIVATE: "#c8452c", "PRIVATE MULTIPLE": "#6b7c90", "PRIVATE-PUBLIC": "#7a4fb5", Unknown: "#a3adb8" };
+  const INSTALL_COLORS = { "POLE MOUNTED": "#2e8b57", "GROUND MOUNTED": "#d99a1e", Unknown: "#a3adb8" };
+  const EXTRA_COLORS = ["#7a4fb5", "#0f8b8d", "#b5487a", "#6b7c90"];
+  const classColors = (rows, map) => rows.map((r, i) => map[r.name] || EXTRA_COLORS[i % EXTRA_COLORS.length]);
+
   function renderOverviewCharts() {
-    const bus = filteredBUs();
+    const scope = analyticsScope();
+    /* BU / network: published BU totals. UT and finer: sum the UTs in scope per BU */
+    const bus = scope.level === "network" || scope.level === "bu"
+      ? filteredBUs()
+      : filteredBUs().map((b) => {
+        const uts = filteredUTs().filter((u) => u.bu_name === b.bu_name);
+        return {
+          bu_name: b.bu_name,
+          dt_public: uts.reduce((acc, u) => acc + u.dt_public, 0),
+          dt_private: uts.reduce((acc, u) => acc + u.dt_private, 0),
+        };
+      });
     barChart("buDt", "chart-bu-dt", bus.map((b) => b.bu_name), [
       { label: "Public", data: bus.map((b) => b.dt_public), backgroundColor: "#1f6fb2", borderRadius: 6 },
       { label: "Private", data: bus.map((b) => b.dt_private), backgroundColor: "#c8452c", borderRadius: 6 },
     ], { stacked: true, labelDecimals: 0 });
+    setScopeNote("scope-workload",
+      scope.level === "ut" ? `${scopeUtLabel(scope)} only`
+        : scope.level === "feeder" ? `Ownership isn't recorded per feeder — showing ${scopeUtLabel(scope)} served by the selection`
+          : scope.level === "dt" ? `UT(s) of the selected DT(s): ${scopeUtLabel(scope)}` : "");
 
     const uts = filteredUTs().slice().sort((a, b) => a.agreement_pct - b.agreement_pct).slice(0, 20);
     barChart("agree", "chart-agreement", uts.map((u) => u.ut_name), [
@@ -1024,17 +1200,27 @@
       },
     });
 
-    const dens = bus.map((b) => ({
-      name: b.bu_name,
-      value: b.dt_per_km2 ?? (b.area_km2 ? +(b.dt_total / b.area_km2).toFixed(1) : 0),
-      fill: b.fill_hex,
-    }));
+    const scope = analyticsScope();
+    /* UT and finer filters: per-UT density (published per UT) instead of the parent BU */
+    const dens = scope.level === "network" || scope.level === "bu"
+      ? bus.map((b) => ({
+        name: b.bu_name,
+        value: b.dt_per_km2 ?? (b.area_km2 ? +(b.dt_total / b.area_km2).toFixed(1) : 0),
+        fill: b.fill_hex,
+      }))
+      : filteredUTs().slice().sort((a, b) => b.dt_per_km2 - a.dt_per_km2).slice(0, 18).map((u) => ({
+        name: u.ut_name,
+        value: u.dt_per_km2 ?? (u.area_km2 ? +(u.dt_total / u.area_km2).toFixed(1) : 0),
+        fill: u.fill_hex || buColor(u.bu_name),
+      }));
+    setScopeNote("scope-density", scope.level === "network" || scope.level === "bu" ? "" : `Per Undertaking · ${scopeUtLabel(scope)}`);
     barChart("dens", "chart-density", dens.map((d) => d.name), [
       { label: "DTs / km²", data: dens.map((d) => d.value), backgroundColor: dens.map((d) => d.fill || buColor(d.name)), borderRadius: 6 },
     ], { legend: false, valueLabels: true, labelDecimals: 1 });
 
-    const own = countsFor("ownership").slice(0, 6);
-    doughnut("own", "chart-ownership", own.map((d) => d.name), own.map((d) => d.count), ["#1f6fb2", "#c8452c", "#6b7c90"], {
+    const ownership = ownershipFor(scope);
+    const own = ownership.rows.filter((d) => d.count > 0);
+    doughnut("own", "chart-ownership", own.map((d) => d.name), own.map((d) => d.count), classColors(own, OWN_COLORS), {
       onClick: (_e, elems) => {
         if (!elems.length) return;
         const label = own[elems[0].index]?.name;
@@ -1044,8 +1230,14 @@
         setStatus(state.dtOwn ? `Filtered DTs · ownership: ${state.dtOwn}` : "Ownership filter cleared");
       },
     });
-    const install = countsFor("install_pos").slice(0, 6);
-    doughnut("install", "chart-install", install.map((d) => d.name), install.map((d) => d.count), ["#2e8b57", "#d99a1e", "#7a4fb5", "#6b7c90"], {
+    const install = countsFor("install_pos", scope.bus).filter((d) => d.count > 0);
+    const installNote = scope.level === "network" || scope.level === "bu"
+      ? ""
+      : `Install position is published per Business Unit only — right chart shows ${scopeBuLabel(scope)}.`;
+    const ownTotal = own.reduce((acc, d) => acc + d.count, 0);
+    setScopeNote("scope-ownership-label", `${scope.level === "feeder" ? scopeUtLabel(scope) : scope.label} · ${fmt.format(ownTotal)} DTs`);
+    setScopeNote("scope-ownership", [ownership.note, installNote].filter(Boolean).join(" "));
+    doughnut("install", "chart-install", install.map((d) => d.name), install.map((d) => d.count), classColors(install, INSTALL_COLORS), {
       onClick: (_e, elems) => {
         if (!elems.length) return;
         const label = install[elems[0].index]?.name;
@@ -1057,8 +1249,11 @@
     });
 
     let re = state.data.dt_analytics.reassignments || [];
-    if (!empty(state.bus)) re = re.filter((r) => state.bus.some((b) => r.name.includes(b)));
+    if (scope.level !== "network") re = re.filter((r) => scope.bus.some((b) => r.name.includes(b)));
     re = re.slice(0, 12);
+    setScopeNote("scope-reassign",
+      scope.level === "network" || scope.level === "bu" ? ""
+        : re.length ? `Reassignments are published per BU flow — showing flows touching ${scopeBuLabel(scope)}.` : `No BU reassignments touch ${scopeBuLabel(scope)}.`);
     barChart("re", "chart-reassign", re.map((r) => r.name), [
       { label: "DTs moved", data: re.map((r) => r.count), backgroundColor: "#c8452c", borderRadius: 5 },
     ], {
@@ -1079,9 +1274,18 @@
     });
 
     const binsOrder = ["≤50", "51–100", "101–200", "201–300", "301–500", ">500", "Unknown"];
-    const bins = (state.data.dt_analytics.capacity.bins || [])
-      .slice()
-      .sort((a, b) => binsOrder.indexOf(a.name) - binsOrder.indexOf(b.name));
+    let bins = (state.data.dt_analytics.capacity.bins || []).slice();
+    if (scope.level === "dt") {
+      /* Selected DTs carry their own kVA rating */
+      const rows = (state.data.map.dt_sample || []).filter((d) => state.dts.includes(d.name));
+      bins = binsOrder
+        .map((name) => ({ name, count: rows.filter((d) => capacityMatch(d.cap, name)).length }))
+        .filter((b) => b.count > 0);
+    }
+    bins.sort((a, b) => binsOrder.indexOf(a.name) - binsOrder.indexOf(b.name));
+    setScopeNote("scope-capacity",
+      scope.level === "network" || scope.level === "dt" ? ""
+        : `Capacity classes are published network-wide only — showing all ${fmt.format(state.data.kpis.dt_total)} DTs, not ${scope.label}.`);
     barChart("cap", "chart-capacity", bins.map((b) => b.name), [
       { label: "DTs", data: bins.map((b) => b.count), backgroundColor: "#d99a1e", borderRadius: 6 },
     ], {
@@ -1103,9 +1307,22 @@
   }
 
   function renderFeederCharts() {
-    const byBu = empty(state.bus)
-      ? state.data.feeders_by_bu
-      : state.data.feeders_by_bu.filter((r) => state.bus.includes(r.bu_name));
+    let byBu;
+    if (empty(state.uts) && empty(state.feeders) && empty(state.dts) && !state.fidelityBand) {
+      byBu = empty(state.bus)
+        ? state.data.feeders_by_bu
+        : state.data.feeders_by_bu.filter((r) => state.bus.includes(r.bu_name));
+    } else {
+      /* UT / feeder / fidelity filters: count the matching feeders per BU */
+      const grouped = {};
+      filteredFeedersMeta().forEach((f) => {
+        const bu = f.new_bu || "Unassigned (no DTs linked)";
+        if (!grouped[bu]) grouped[bu] = { bu_name: bu, feeder_count: 0, len_km: 0 };
+        grouped[bu].feeder_count += 1;
+        grouped[bu].len_km += Number(f.len_km) || 0;
+      });
+      byBu = Object.values(grouped).sort((a, b) => b.feeder_count - a.feeder_count);
+    }
 
     /* Feeders with no DTs linked have no 2026 BU: show them on two lines and don't treat a click as a BU filter */
     const isUnassigned = (name) => !name || name === "Unknown" || name.startsWith("Unassigned");
