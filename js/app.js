@@ -329,6 +329,31 @@
     return _sampleByFeeder;
   }
 
+  /** True once data/dt_register.json (every DT with its register attributes) has loaded */
+  const hasRegister = () => !!state.data?.map?.dt_register;
+
+  /** Expand the dictionary-encoded register into DT records (same shape the map and filters use) */
+  function applyRegister(reg) {
+    const { fields, dict, rows } = reg;
+    state.data.map.dt_sample = rows.map((row) => {
+      const rec = {};
+      fields.forEach((f, i) => { rec[f] = dict[f] ? dict[f][row[i]] : row[i]; });
+      return rec;
+    });
+    state.data.map.dt_register = true;
+    _sampleByFeeder = null;
+    _dtFeeder = null;
+  }
+
+  /** Register DTs inside the location filters (BU / UT / feeder / DT); ownership / capacity picks only filter the map */
+  function scopeDTs() {
+    const sets = [["bu", state.bus], ["ut", state.uts], ["feeder", state.feeders], ["name", state.dts]]
+      .filter(([, arr]) => !empty(arr))
+      .map(([key, arr]) => [key, new Set(arr)]);
+    const dts = state.data.map.dt_sample || [];
+    return sets.length ? dts.filter((d) => sets.every(([key, set]) => set.has(d[key]))) : dts;
+  }
+
   /** Exact DT count for a register feeder name */
   const feederDtCount = (name) => {
     const nom = state.data.nomenclature?.feeders?.find((n) => n.name === name);
@@ -589,6 +614,8 @@
           <div><dt>Business Unit</dt><dd>${buDisplayName(p.bu)}</dd></div>
           <div><dt>Undertaking</dt><dd>${utDisplayName(p.ut)}</dd></div>
           ${p.cap != null ? `<div><dt>Capacity</dt><dd>${p.cap} kVA</dd></div>` : ""}
+          ${p.conn ? `<div><dt>Connection</dt><dd>${utDisplayName(p.conn)}</dd></div>` : ""}
+          ${p.meter ? `<div><dt>Metering</dt><dd>${utDisplayName(p.meter)}</dd></div>` : ""}
           ${p.install || p.install_pos ? `<div><dt>Install position</dt><dd>${p.install || p.install_pos}</dd></div>` : ""}
         </dl>
       </div>`;
@@ -900,7 +927,12 @@
 
     let dtTotal = k.dt_total;
     let dtHint = `${fmt.format(k.dt_public)} public · ${fmt.format(k.dt_private)} private`;
-    if (scope.level === "bu" || scope.level === "ut") {
+    if (hasRegister() && scope.level !== "network") {
+      const rows = scopeDTs();
+      const pub = rows.filter((d) => !isPrivateOwn(d.own)).length;
+      dtTotal = rows.length;
+      dtHint = `${fmt.format(pub)} public · ${fmt.format(rows.length - pub)} private`;
+    } else if (scope.level === "bu" || scope.level === "ut") {
       dtTotal = sumUts("dt_total");
       dtHint = `${fmt.format(sumUts("dt_public"))} public · ${fmt.format(sumUts("dt_private"))} private`;
     } else if (scope.level === "feeder") {
@@ -1101,16 +1133,16 @@
       .sort((a, b) => b.count - a.count);
   }
 
-  /** Ownership at the finest published level: UT public / private totals, or the selected DTs */
+  /** Ownership per DT from the register; UT public / private totals until it loads */
   function ownershipFor(scope) {
-    if (scope.level === "dt") {
-      const rows = (state.data.map.dt_sample || []).filter((d) => state.dts.includes(d.name));
+    if (hasRegister() || scope.level === "dt") {
+      const rows = hasRegister() ? scopeDTs() : (state.data.map.dt_sample || []).filter((d) => state.dts.includes(d.name));
       const merged = {};
       rows.forEach((d) => {
         const name = normaliseClass("ownership", d.own);
         merged[name] = (merged[name] || 0) + 1;
       });
-      return { rows: Object.entries(merged).map(([name, count]) => ({ name, count })), note: "" };
+      return { rows: Object.entries(merged).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count), note: "" };
     }
     /* Same public / private totals as the KPI strip and UT table, so every view adds up */
     const uts = filteredUTs();
@@ -1132,9 +1164,16 @@
   function renderOverviewCharts() {
     const scope = analyticsScope();
     /* BU / network: published BU totals. UT and finer: sum the UTs in scope per BU */
+    const registerRows = hasRegister() && scope.level !== "network" && scope.level !== "bu" ? scopeDTs() : null;
     const bus = scope.level === "network" || scope.level === "bu"
       ? filteredBUs()
-      : filteredBUs().map((b) => {
+      : registerRows
+        ? filteredBUs().map((b) => {
+          const rows = registerRows.filter((d) => d.bu === b.bu_name);
+          const priv = rows.filter((d) => isPrivateOwn(d.own)).length;
+          return { bu_name: b.bu_name, dt_public: rows.length - priv, dt_private: priv };
+        })
+        : filteredBUs().map((b) => {
         const uts = filteredUTs().filter((u) => u.bu_name === b.bu_name);
         return {
           bu_name: b.bu_name,
@@ -1147,7 +1186,8 @@
       { label: "Private", data: bus.map((b) => b.dt_private), backgroundColor: "#c8452c", borderRadius: 6 },
     ], { stacked: true, labelDecimals: 0 });
     setScopeNote("scope-workload",
-      scope.level === "ut" ? `${scopeUtLabel(scope)} only`
+      registerRows ? `${scope.label} only`
+        : scope.level === "ut" ? `${scopeUtLabel(scope)} only`
         : scope.level === "feeder" ? `Ownership isn't recorded per feeder — showing ${scopeUtLabel(scope)} served by the selection`
           : scope.level === "dt" ? `UT(s) of the selected DT(s): ${scopeUtLabel(scope)}` : "");
 
@@ -1235,7 +1275,7 @@
       ? ""
       : `Install position is published per Business Unit only — right chart shows ${scopeBuLabel(scope)}.`;
     const ownTotal = own.reduce((acc, d) => acc + d.count, 0);
-    setScopeNote("scope-ownership-label", `${scope.level === "feeder" ? scopeUtLabel(scope) : scope.label} · ${fmt.format(ownTotal)} DTs`);
+    setScopeNote("scope-ownership-label", `${scope.level === "feeder" && !hasRegister() ? scopeUtLabel(scope) : scope.label} · ${fmt.format(ownTotal)} DTs`);
     setScopeNote("scope-ownership", [ownership.note, installNote].filter(Boolean).join(" "));
     doughnut("install", "chart-install", install.map((d) => d.name), install.map((d) => d.count), classColors(install, INSTALL_COLORS), {
       onClick: (_e, elems) => {
@@ -1249,10 +1289,20 @@
     });
 
     let re = state.data.dt_analytics.reassignments || [];
-    if (scope.level !== "network") re = re.filter((r) => scope.bus.some((b) => r.name.includes(b)));
+    if (hasRegister()) {
+      /* Old register BU → NEW_BU_2026 for exactly the DTs in the filter */
+      const flows = {};
+      scopeDTs().forEach((d) => {
+        if (!d.old_bu || d.old_bu === d.bu) return;
+        const key = `${d.old_bu} → ${d.bu}`;
+        flows[key] = (flows[key] || 0) + 1;
+      });
+      re = Object.entries(flows).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+    } else if (scope.level !== "network") re = re.filter((r) => scope.bus.some((b) => r.name.includes(b)));
     re = re.slice(0, 12);
     setScopeNote("scope-reassign",
       scope.level === "network" || scope.level === "bu" ? ""
+        : hasRegister() ? (re.length ? "" : `No DTs in ${scope.label} changed BU.`)
         : re.length ? `Reassignments are published per BU flow — showing flows touching ${scopeBuLabel(scope)}.` : `No BU reassignments touch ${scopeBuLabel(scope)}.`);
     barChart("re", "chart-reassign", re.map((r) => r.name), [
       { label: "DTs moved", data: re.map((r) => r.count), backgroundColor: "#c8452c", borderRadius: 5 },
@@ -1275,16 +1325,16 @@
 
     const binsOrder = ["≤50", "51–100", "101–200", "201–300", "301–500", ">500", "Unknown"];
     let bins = (state.data.dt_analytics.capacity.bins || []).slice();
-    if (scope.level === "dt") {
-      /* Selected DTs carry their own kVA rating */
-      const rows = (state.data.map.dt_sample || []).filter((d) => state.dts.includes(d.name));
+    if (hasRegister() || scope.level === "dt") {
+      /* Every register DT carries its own kVA rating */
+      const rows = hasRegister() ? scopeDTs() : (state.data.map.dt_sample || []).filter((d) => state.dts.includes(d.name));
       bins = binsOrder
         .map((name) => ({ name, count: rows.filter((d) => capacityMatch(d.cap, name)).length }))
         .filter((b) => b.count > 0);
     }
     bins.sort((a, b) => binsOrder.indexOf(a.name) - binsOrder.indexOf(b.name));
     setScopeNote("scope-capacity",
-      scope.level === "network" || scope.level === "dt" ? ""
+      scope.level === "network" || scope.level === "dt" || hasRegister() ? ""
         : `Capacity classes are published network-wide only — showing all ${fmt.format(state.data.kpis.dt_total)} DTs, not ${scope.label}.`);
     barChart("cap", "chart-capacity", bins.map((b) => b.name), [
       { label: "DTs", data: bins.map((b) => b.count), backgroundColor: "#d99a1e", borderRadius: 6 },
@@ -1755,7 +1805,8 @@
     dts.forEach((p) => {
       const priv = isPrivateOwn(p.own);
       const target = priv ? state.layers.dtsPrivate : state.layers.dtsPublic;
-      const popup = dtPopupHtml(p);
+      /* Built on open so 20k register DTs stay cheap to draw */
+      const popup = () => dtPopupHtml(p);
       if (focused && dts.length <= 800) {
         L.marker([p.lat, p.lon], { icon: dtDivIcon(p.own, !empty(state.dts)) })
           .bindPopup(popup, popupOpts)
@@ -1954,21 +2005,54 @@
       seen.add(d.name);
       items.push({ value: d.name, label: d.name });
     });
-    return items.sort((a, b) => a.label.localeCompare(b.label)).slice(0, 800);
+    return items.sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  const COMBO_LIST_MAX = 800;
+
+  /** Search first, then cap the list, so every DT in the register can be found by typing */
+  function visibleComboItems(kind, query) {
+    const q = (query || "").trim().toLowerCase();
+    let items = comboItems(kind);
+    if (q) items = items.filter((i) => i.label.toLowerCase().includes(q) || i.value.toLowerCase().includes(q));
+    return { items: items.slice(0, COMBO_LIST_MAX), total: items.length };
+  }
+
+  let _dtFeeder = null;
+  /** Register feeder of a DT name */
+  function dtFeederOf(name) {
+    if (!_dtFeeder || _dtFeeder.size === 0) {
+      _dtFeeder = new Map();
+      (state.data.map.dt_sample || []).forEach((d) => {
+        if (d.name && !_dtFeeder.has(d.name)) _dtFeeder.set(d.name, d.feeder);
+      });
+    }
+    return _dtFeeder.get(name) || "";
+  }
+
+  /** Keep the feeder and DT pickers in step: a feeder narrows the DT list, a DT selects its own feeder */
+  function cascadeSelection(kind, arr) {
+    if (kind === "feeder" && arr.length) {
+      state.dts = state.dts.filter((n) => arr.includes(dtFeederOf(n)));
+    }
+    if (kind === "dt" && arr.length) {
+      state.feeders = uniq(state.feeders.concat(arr.map(dtFeederOf)));
+    }
   }
 
   function fillComboList(kind, query) {
     const root = comboRoot(kind);
     const list = root.querySelector(".combo-list");
-    const q = (query || "").trim().toLowerCase();
-    let items = comboItems(kind);
-    if (q) items = items.filter((i) => i.label.toLowerCase().includes(q) || i.value.toLowerCase().includes(q));
+    const { items, total } = visibleComboItems(kind, query);
     const selected = new Set(selectedArr(kind));
     if (!items.length) {
       list.innerHTML = `<li class="empty">No matches</li>`;
       return;
     }
-    list.innerHTML = items
+    const more = total > items.length
+      ? `<li class="empty">Showing ${fmt.format(items.length)} of ${fmt.format(total)} — type to search</li>`
+      : "";
+    list.innerHTML = more + items
       .map((i) => {
         const id = `cb-${kind}-${encodeURIComponent(i.value).replace(/%/g, "")}`;
         const checked = selected.has(i.value) ? "checked" : "";
@@ -1983,6 +2067,7 @@
         if (input.checked && idx < 0) arr.push(value);
         if (!input.checked && idx >= 0) arr.splice(idx, 1);
         setSelectedArr(kind, arr);
+        cascadeSelection(kind, arr);
         if (kind === "bu") {
           /* drop UTs/feeders/DTs outside selected BUs */
           if (arr.length) {
@@ -2018,7 +2103,8 @@
     set("bu", "All BUs", "BUs");
     set("ut", "All UTs", "UTs");
     set("feeder", "All feeders", "feeders");
-    set("dt", "All DTs", "DTs");
+    const dtsOnFeeders = empty(state.feeders) ? 0 : state.feeders.reduce((acc, f) => acc + feederDtCount(f), 0);
+    set("dt", dtsOnFeeders ? `All ${fmt.format(dtsOnFeeders)} DTs on ${state.feeders.length === 1 ? "feeder" : "feeders"}` : "All DTs", "DTs");
   }
 
   function populateCombos() {
@@ -2047,8 +2133,9 @@
           if (btn.dataset.action === "clear") {
             setSelectedArr(kind, []);
           } else if (btn.dataset.action === "select-all") {
-            const items = comboItems(kind);
+            const { items } = visibleComboItems(kind, search.value || "");
             setSelectedArr(kind, items.map((i) => i.value));
+            cascadeSelection(kind, selectedArr(kind));
           }
           syncComboLabels();
           refreshAll({ zoom: true });
@@ -2411,6 +2498,11 @@
     wireUploadExport();
     initOwner();
 
+    // Full DT register streams in alongside; charts upgrade to per-DT figures when it lands
+    const registerPromise = fetch("data/dt_register.json")
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null);
+
     // Critical path: dashboard JSON first so KPIs/filters paint ASAP
     const dashRes = await fetch("data/dashboard.json");
     if (!dashRes.ok) throw new Error("Failed to load dashboard.json");
@@ -2428,6 +2520,16 @@
     renderUTTable();
     renderActiveTabCharts(true);
 
+    const registerReady = registerPromise.then((reg) => {
+      if (!reg?.rows) return;
+      applyRegister(reg);
+      state.rendered = { overview: false, assets: false, feeders: false };
+      renderKPIs();
+      renderUTTable();
+      renderActiveTabCharts(true);
+      populateCombos();
+    });
+
     // Defer heavy geo + map to next frames (keeps clicks/filters snappy during load)
     const schedule = (fn, timeout = 1200) => {
       if (typeof requestIdleCallback === "function") requestIdleCallback(() => fn(), { timeout });
@@ -2443,6 +2545,7 @@
       state.feedersGeo = feedRes.ok ? await feedRes.json() : { type: "FeatureCollection", features: [] };
       state.labels = labelRes.ok ? await labelRes.json() : { bu: [], ut: [] };
       state.lagos = lagosRes.ok ? await lagosRes.json() : null;
+      await registerReady;
       requestAnimationFrame(() => {
         initMap();
         if (state.activeTab === "feeders") renderFeederCharts();

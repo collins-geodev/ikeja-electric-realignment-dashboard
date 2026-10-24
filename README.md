@@ -105,7 +105,8 @@ Use **Filter Layers** in each map title bar to toggle overlays. Default framing 
 | --- | --- |
 | QGIS / ArcGIS Pro | Source geometry, TOC attribution, export pipeline |
 | GeoJSON / JSON | Runtime data under `data/` |
-| Curated `dashboard.json` | KPIs, BU/UT stats, DT sample, analytics aggregates |
+| Curated `dashboard.json` | KPIs, BU/UT stats, analytics aggregates |
+| `dt_register.json` | Every DT (ownership, capacity, feeder, old/new BU & UT, connection, metering, location) — rebuild with `python scripts/build_dt_register.py IE_DT_Public.kmz IE_DT_Private.kmz` |
 | `feeders.geojson` | MV corridor geometries |
 | `lagos_boundary.geojson` | State context |
 | `map_labels.json` | BU / UT label anchors |
